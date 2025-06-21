@@ -1,6 +1,6 @@
 {
   "name": "llm-chat-app",
-  "description": "A simple chat application powered by Cloudflare Workers AI",
+  "description": "A simple AI chat application",
   "version": "0.0.0",
   "cloudflare": {
     "label": "LLM Chat App",
