@@ -12,6 +12,12 @@
   const STORAGE_KEY_SETTINGS = 'nexus_ai_settings';
   const STORAGE_KEY_THEME = 'nexus_ai_theme';
   const STORAGE_KEY_PROJECTS = 'nexus_ai_projects';
+  const STORAGE_KEY_DELETED_SESSIONS = 'nexus_ai_deleted_sessions';
+  const STORAGE_KEY_DELETED_PROJECTS = 'nexus_ai_deleted_projects';
+  const PUTER_FS_SESSIONS_PATH = 'nexus_chat_sessions.json';
+  const PUTER_FS_PROJECTS_PATH = 'nexus_chat_projects.json';
+  const PUTER_FS_DELETED_SESSIONS_PATH = 'nexus_deleted_sessions.json';
+  const PUTER_FS_DELETED_PROJECTS_PATH = 'nexus_deleted_projects.json';
 
   const PERSONA_PRESETS = {
     default: 'You are Nexus AI, a brilliant, friendly, and concise assistant. Format responses using clean markdown, bullet points, and code blocks where helpful.',
@@ -71,6 +77,9 @@
   let editingProjectFiles = [];
   let editingProjectIcon = '⚡';
 
+  let deletedSessionIds = new Set();
+  let deletedProjectIds = new Set();
+
   let settings = {
     personaPreset: 'default',
     systemPrompt: PERSONA_PRESETS.default,
@@ -115,6 +124,7 @@
   const btnEditActiveProject = document.getElementById('btn-edit-active-project');
   const btnExitProject = document.getElementById('btn-exit-project');
 
+  const btnTopbarSync = document.getElementById('btn-topbar-sync');
   const btnThemeToggle = document.getElementById('btn-theme-toggle');
   const themeIconSun = document.getElementById('theme-icon-sun');
   const themeIconMoon = document.getElementById('theme-icon-moon');
@@ -161,6 +171,8 @@
   const btnModalAuth = document.getElementById('btn-modal-auth');
   const statSyncStatus = document.getElementById('stat-sync-status');
   const statChatCount = document.getElementById('stat-chat-count');
+  const btnManualSync = document.getElementById('btn-manual-sync');
+  const syncLastTime = document.getElementById('sync-last-time');
   const settingDisplayName = document.getElementById('setting-display-name');
   const settingCustomUsername = document.getElementById('setting-custom-username');
   const btnResetUsername = document.getElementById('btn-reset-username');
@@ -449,10 +461,222 @@
   btnCancelSettings.addEventListener('click', () => closeModal(settingsModal));
   btnCloseSettingsModal.addEventListener('click', () => closeModal(settingsModal));
 
-  // --- Puter Authentication & Cloud KV Storage ---
+  // --- Cloud Storage I/O & Dual-Tier Helpers (Puter.fs + Puter.kv) ---
+  function loadLocalTombstones() {
+    try {
+      const s = localStorage.getItem(STORAGE_KEY_DELETED_SESSIONS);
+      if (s) deletedSessionIds = new Set(JSON.parse(s));
+    } catch (e) {}
+    try {
+      const p = localStorage.getItem(STORAGE_KEY_DELETED_PROJECTS);
+      if (p) deletedProjectIds = new Set(JSON.parse(p));
+    } catch (e) {}
+  }
+
+  function saveLocalTombstones() {
+    try {
+      localStorage.setItem(STORAGE_KEY_DELETED_SESSIONS, JSON.stringify(Array.from(deletedSessionIds)));
+      localStorage.setItem(STORAGE_KEY_DELETED_PROJECTS, JSON.stringify(Array.from(deletedProjectIds)));
+    } catch (e) {}
+  }
+
+  async function syncTombstones() {
+    saveLocalTombstones();
+    const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+    if (isSignedIn && settings.storageMode !== 'local') {
+      try {
+        const remoteDelSessions = await readPuterFileOrKV(PUTER_FS_DELETED_SESSIONS_PATH, STORAGE_KEY_DELETED_SESSIONS);
+        if (Array.isArray(remoteDelSessions)) {
+          remoteDelSessions.forEach(id => deletedSessionIds.add(id));
+        }
+        const remoteDelProjects = await readPuterFileOrKV(PUTER_FS_DELETED_PROJECTS_PATH, STORAGE_KEY_DELETED_PROJECTS);
+        if (Array.isArray(remoteDelProjects)) {
+          remoteDelProjects.forEach(id => deletedProjectIds.add(id));
+        }
+
+        if (deletedSessionIds.size > 200) {
+          deletedSessionIds = new Set(Array.from(deletedSessionIds).slice(-200));
+        }
+        if (deletedProjectIds.size > 100) {
+          deletedProjectIds = new Set(Array.from(deletedProjectIds).slice(-100));
+        }
+
+        saveLocalTombstones();
+        await writePuterFileAndKV(PUTER_FS_DELETED_SESSIONS_PATH, STORAGE_KEY_DELETED_SESSIONS, Array.from(deletedSessionIds));
+        await writePuterFileAndKV(PUTER_FS_DELETED_PROJECTS_PATH, STORAGE_KEY_DELETED_PROJECTS, Array.from(deletedProjectIds));
+      } catch (e) {
+        console.warn('[Nexus Sync] Tombstone sync warning:', e);
+      }
+    }
+  }
+
+  async function readPuterFileOrKV(filePath, kvKey) {
+    if (typeof puter !== 'undefined' && puter.fs && typeof puter.fs.read === 'function') {
+      try {
+        const blob = await puter.fs.read(filePath);
+        if (blob) {
+          const text = await blob.text();
+          if (text && text.trim()) {
+            return JSON.parse(text);
+          }
+        }
+      } catch (fsErr) {
+        // Fallback to KV
+      }
+    }
+
+    if (typeof puter !== 'undefined' && puter.kv && typeof puter.kv.get === 'function') {
+      try {
+        const kvData = await puter.kv.get(kvKey);
+        if (kvData !== undefined && kvData !== null) {
+          return typeof kvData === 'string' ? JSON.parse(kvData) : kvData;
+        }
+      } catch (kvErr) {
+        console.warn(`[Nexus Sync] puter.kv.get(${kvKey}) error:`, kvErr?.message || kvErr);
+      }
+    }
+
+    return null;
+  }
+
+  async function writePuterFileAndKV(filePath, kvKey, data) {
+    const jsonStr = JSON.stringify(data);
+    let fsSuccess = false;
+
+    if (typeof puter !== 'undefined' && puter.fs && typeof puter.fs.write === 'function') {
+      try {
+        await puter.fs.write(filePath, jsonStr);
+        fsSuccess = true;
+      } catch (fsErr) {
+        console.warn(`[Nexus Sync] puter.fs.write(${filePath}) error:`, fsErr);
+      }
+    }
+
+    if (typeof puter !== 'undefined' && puter.kv && typeof puter.kv.set === 'function') {
+      if (jsonStr.length < 380000) {
+        try {
+          await puter.kv.set(kvKey, data);
+        } catch (kvErr) {
+          console.warn(`[Nexus Sync] puter.kv.set(${kvKey}) error:`, kvErr);
+        }
+      } else {
+        console.log(`[Nexus Sync] Payload (${jsonStr.length} bytes) exceeds Puter KV limit. Stored safely via puter.fs.`);
+      }
+    }
+
+    return fsSuccess;
+  }
+
+  function mergeSessions(cloudList, localList) {
+    if (!Array.isArray(cloudList) && !Array.isArray(localList)) return [];
+    const cList = Array.isArray(cloudList) ? cloudList : [];
+    const lList = Array.isArray(localList) ? localList : [];
+
+    const map = new Map();
+
+    cList.forEach(s => {
+      if (s && s.id && !deletedSessionIds.has(s.id)) {
+        map.set(s.id, s);
+      }
+    });
+
+    lList.forEach(localS => {
+      if (!localS || !localS.id || deletedSessionIds.has(localS.id)) return;
+      const existing = map.get(localS.id);
+      if (!existing) {
+        const hasContent = (localS.messages && localS.messages.length > 0) || (localS.title && !localS.title.includes('New Conversation'));
+        if (hasContent || map.size === 0) {
+          map.set(localS.id, localS);
+        }
+      } else {
+        const existingCount = (existing.messages || []).length;
+        const localCount = (localS.messages || []).length;
+        if (localCount > existingCount) {
+          map.set(localS.id, localS);
+        } else if (localCount === existingCount) {
+          const existingTime = existing.updatedAt || (existing.messages && existing.messages.length > 0 ? existing.messages[existing.messages.length - 1].timestamp : 0) || existing.createdAt || 0;
+          const localTime = localS.updatedAt || (localS.messages && localS.messages.length > 0 ? localS.messages[localS.messages.length - 1].timestamp : 0) || localS.createdAt || 0;
+          if (localTime > existingTime) {
+            map.set(localS.id, localS);
+          }
+        }
+      }
+    });
+
+    const all = Array.from(map.values());
+    const realSessions = all.filter(s => (s.messages && s.messages.length > 0) || (s.title && !s.title.includes('New Conversation')));
+    const finalSessions = realSessions.length > 0 ? realSessions : all;
+
+    finalSessions.sort((a, b) => {
+      const timeA = a.updatedAt || (a.messages && a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : 0) || a.createdAt || 0;
+      const timeB = b.updatedAt || (b.messages && b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : 0) || b.createdAt || 0;
+      return timeB - timeA;
+    });
+
+    return finalSessions;
+  }
+
+  function mergeProjects(cloudList, localList) {
+    if (!Array.isArray(cloudList) && !Array.isArray(localList)) return [];
+    const cList = Array.isArray(cloudList) ? cloudList : [];
+    const lList = Array.isArray(localList) ? localList : [];
+
+    const map = new Map();
+    cList.forEach(p => {
+      if (p && p.id && !deletedProjectIds.has(p.id)) {
+        map.set(p.id, p);
+      }
+    });
+
+    lList.forEach(p => {
+      if (!p || !p.id || deletedProjectIds.has(p.id)) return;
+      const existing = map.get(p.id);
+      if (!existing) {
+        map.set(p.id, p);
+      } else {
+        const existingTime = existing.updatedAt || existing.createdAt || 0;
+        const localTime = p.updatedAt || p.createdAt || 0;
+        if (localTime > existingTime) {
+          map.set(p.id, p);
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  // --- Puter Authentication & Cloud Storage Synchronization ---
+  function updateSyncStatusUI(statusText, isSuccess = true) {
+    if (statSyncStatus) {
+      const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+      if (isSignedIn) {
+        statSyncStatus.textContent = statusText || 'Synced (Puter Cloud)';
+        statSyncStatus.style.color = isSuccess ? 'var(--success-color)' : 'var(--warning-color, #f59e0b)';
+      } else {
+        statSyncStatus.textContent = 'Local Storage Only';
+        statSyncStatus.style.color = 'var(--text-muted)';
+      }
+    }
+    if (syncLastTime) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      syncLastTime.textContent = isSuccess ? `Last synced ${timeStr}` : 'Sync issue (using local cache)';
+    }
+  }
+
+  async function waitForPuter(timeoutMs = 4000) {
+    const start = Date.now();
+    while (typeof puter === 'undefined' && (Date.now() - start < timeoutMs)) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+    return typeof puter !== 'undefined';
+  }
+
   async function initPuter() {
-    if (typeof puter === 'undefined') {
-      console.warn('Puter.js SDK not yet loaded.');
+    const isReady = await waitForPuter();
+    if (!isReady) {
+      console.warn('[Nexus Puter] Puter.js SDK not available after wait.');
+      updateAuthUI();
       return;
     }
 
@@ -460,12 +684,13 @@
       await loadCloudSettings();
       await updateAuthUI();
       fetchPuterModels();
+      await syncTombstones();
       await loadProjects();
       await loadSessions();
+      updateSyncStatusUI('Synced (Puter Cloud)', true);
     } catch (err) {
-      console.error('Puter init error:', err);
-      loadProjectsFromLocal();
-      loadSessionsFromLocal();
+      console.error('[Nexus Puter] Puter init error:', err);
+      updateSyncStatusUI('Sync error (using local cache)', false);
     }
   }
 
@@ -491,12 +716,11 @@
         modalAccountAvatar.textContent = initial;
         btnModalAuth.textContent = 'Sign Out';
         btnModalAuth.className = 'btn-secondary';
-        statSyncStatus.textContent = 'Synced (Puter KV)';
-        statSyncStatus.style.color = 'var(--success-color)';
+        updateSyncStatusUI('Synced (Puter Cloud)', true);
 
         if (linkManagePuter) linkManagePuter.style.display = 'inline-flex';
       } catch (e) {
-        console.warn('Failed to get user:', e);
+        console.warn('[Nexus Auth] Failed to get user:', e);
       }
     } else {
       puterUser = null;
@@ -514,8 +738,7 @@
       modalAccountAvatar.textContent = initial;
       btnModalAuth.textContent = 'Sign In with Puter';
       btnModalAuth.className = 'btn-primary';
-      statSyncStatus.textContent = 'Local Storage Only';
-      statSyncStatus.style.color = 'var(--text-muted)';
+      updateSyncStatusUI('Local Storage Only', true);
 
       if (linkManagePuter) linkManagePuter.style.display = 'none';
     }
@@ -526,8 +749,77 @@
       welcomeUsername.textContent = (displayName !== 'Guest User') ? displayName : 'human';
     }
 
-    statChatCount.textContent = sessions.length;
+    if (statChatCount) {
+      statChatCount.textContent = sessions.length;
+    }
   }
+
+  async function manualSyncAll(showFeedback = true) {
+    const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+    if (!isSignedIn) {
+      if (showFeedback) showToast('Please sign in with Puter to sync with cloud.');
+      return;
+    }
+
+    if (btnTopbarSync) btnTopbarSync.classList.add('syncing');
+    if (btnManualSync) {
+      btnManualSync.classList.add('syncing');
+      btnManualSync.disabled = true;
+    }
+
+    try {
+      if (showFeedback) showToast('Syncing chats with Puter Cloud...');
+      await loadCloudSettings();
+      await syncTombstones();
+      await loadProjects();
+      await loadSessions();
+      await persistSessions();
+      await persistProjects();
+      updateAuthUI();
+      updateSyncStatusUI('Synced (Puter Cloud)', true);
+      if (showFeedback) {
+        showToast(`Cloud Sync Complete: ${sessions.length} chats & ${projects.length} projects synced!`);
+      }
+    } catch (err) {
+      console.error('[Nexus Sync] Manual sync failed:', err);
+      updateSyncStatusUI('Sync error', false);
+      if (showFeedback) showToast('Sync failed: ' + (err.message || 'Network error'));
+    } finally {
+      if (btnTopbarSync) btnTopbarSync.classList.remove('syncing');
+      if (btnManualSync) {
+        btnManualSync.classList.remove('syncing');
+        btnManualSync.disabled = false;
+      }
+    }
+  }
+
+  if (btnTopbarSync) {
+    btnTopbarSync.addEventListener('click', () => manualSyncAll(true));
+  }
+  if (btnManualSync) {
+    btnManualSync.addEventListener('click', () => manualSyncAll(true));
+  }
+
+  // Background Auto-Sync when returning to tab or focus
+  let lastBackgroundSyncTime = 0;
+  function triggerBackgroundSync() {
+    if (Date.now() - lastBackgroundSyncTime < 15000) return; // At most once every 15s
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode !== 'local') {
+      lastBackgroundSyncTime = Date.now();
+      console.log('[Nexus Sync] Window active: checking for updates from other devices...');
+      manualSyncAll(false);
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      triggerBackgroundSync();
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    triggerBackgroundSync();
+  });
 
   btnModalAuth.addEventListener('click', async () => {
     if (typeof puter === 'undefined') {
@@ -546,11 +838,15 @@
         await puter.auth.signIn();
         if (puter.auth.isSignedIn()) {
           const user = await puter.auth.getUser();
+          showToast(`Welcome back, ${getEffectiveDisplayName() || user.username || 'friend'}! Syncing...`);
           await loadCloudSettings();
+          await syncTombstones();
           await loadProjects();
-          await updateAuthUI();
-          showToast(`Welcome back, ${getEffectiveDisplayName() || user.username || 'friend'}!`);
           await loadSessions();
+          await persistSessions();
+          await updateAuthUI();
+          updateSyncStatusUI('Synced (Puter Cloud)', true);
+          showToast(`Synced ${sessions.length} conversations across all devices!`);
         }
       } catch (err) {
         console.error('Sign-in failed:', err);
@@ -849,31 +1145,47 @@
   btnCancelModelModal.addEventListener('click', () => closeModal(modelModal));
 
   // --- Custom Projects (Workspaces) Management ---
+  function getLocalProjects() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY_PROJECTS);
+      return local ? JSON.parse(local) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   async function loadProjects() {
-    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+    const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+    if (isSignedIn && settings.storageMode !== 'local') {
       try {
-        const cloudData = await puter.kv.get(STORAGE_KEY_PROJECTS);
-        if (cloudData) {
-          projects = typeof cloudData === 'string' ? JSON.parse(cloudData) : cloudData;
+        const cloudData = await readPuterFileOrKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS);
+        const local = getLocalProjects();
+
+        if (cloudData && Array.isArray(cloudData)) {
+          projects = mergeProjects(cloudData, local);
           localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+          if (projects.length > cloudData.length || local.length > 0) {
+            writePuterFileAndKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS, projects).catch(e => console.warn(e));
+          }
+          renderProjectsList();
+          updateTopbarProjectPill();
+          return;
+        } else if (local.length > 0) {
+          projects = local.filter(p => p && p.id && !deletedProjectIds.has(p.id));
+          await writePuterFileAndKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS, projects);
           renderProjectsList();
           updateTopbarProjectPill();
           return;
         }
       } catch (err) {
-        console.warn('Failed to load projects from Puter KV:', err);
+        console.warn('[Nexus Sync] Failed to load projects from Puter Cloud:', err);
       }
     }
     loadProjectsFromLocal();
   }
 
   function loadProjectsFromLocal() {
-    try {
-      const local = localStorage.getItem(STORAGE_KEY_PROJECTS);
-      projects = local ? JSON.parse(local) : [];
-    } catch (e) {
-      projects = [];
-    }
+    projects = getLocalProjects().filter(p => p && p.id && !deletedProjectIds.has(p.id));
     renderProjectsList();
     updateTopbarProjectPill();
   }
@@ -881,11 +1193,12 @@
   async function persistProjects() {
     try {
       localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
-      if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
-        await puter.kv.set(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+      const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+      if (isSignedIn && settings.storageMode !== 'local') {
+        await writePuterFileAndKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS, projects);
       }
     } catch (e) {
-      console.warn('Failed to persist projects:', e);
+      console.warn('[Nexus Sync] Failed to persist projects:', e);
     }
     renderProjectsList();
     updateTopbarProjectPill();
@@ -1330,6 +1643,7 @@
     const proj = projects.find(p => p.id === projectId);
     const projName = proj ? proj.name : 'Project';
 
+    deletedProjectIds.add(projectId);
     projects = projects.filter(p => p.id !== projectId);
     if (activeProjectId === projectId) {
       activeProjectId = null;
@@ -1337,11 +1651,13 @@
     sessions.forEach(s => {
       if (s.projectId === projectId) {
         s.projectId = null;
+        s.updatedAt = Date.now();
       }
     });
 
     await persistProjects();
     await persistSessions();
+    syncTombstones();
     closeProjectStudio();
     renderProjectsList();
     renderSessionList();
@@ -1394,55 +1710,81 @@
   }
 
   // --- Session & History Management ---
+  function getLocalSessions() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      return local ? JSON.parse(local) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   async function loadSessions() {
-    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+    const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+    const canUseCloud = isSignedIn && settings.storageMode !== 'local';
+
+    if (canUseCloud) {
       try {
-        const cloudData = await puter.kv.get(STORAGE_KEY_SESSIONS);
-        if (cloudData) {
-          sessions = typeof cloudData === 'string' ? JSON.parse(cloudData) : cloudData;
+        console.log('[Nexus Sync] Fetching chat sessions from Puter Cloud...');
+        const cloudData = await readPuterFileOrKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS);
+        const local = getLocalSessions();
+
+        if (cloudData && Array.isArray(cloudData)) {
+          console.log(`[Nexus Sync] Retrieved ${cloudData.length} cloud sessions. Merging with ${local.length} local sessions.`);
+          sessions = mergeSessions(cloudData, local);
+          localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+
+          // If local had sessions not yet in cloud, upload merged list back to cloud
+          if (sessions.length > cloudData.length || local.length > 0) {
+            writePuterFileAndKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS, sessions).catch(e => console.warn(e));
+          }
+
+          updateSyncStatusUI('Synced (Puter Cloud)', true);
+          renderSessionList();
+          restoreActiveSession();
+          return;
+        } else if (local.length > 0) {
+          console.log(`[Nexus Sync] Puter Cloud sessions empty. Uploading ${local.length} local sessions to cloud...`);
+          sessions = local.filter(s => s && s.id && !deletedSessionIds.has(s.id));
+          await writePuterFileAndKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS, sessions);
+          updateSyncStatusUI('Synced (Puter Cloud)', true);
           renderSessionList();
           restoreActiveSession();
           return;
         }
       } catch (err) {
-        console.warn('Failed to load from Puter KV:', err);
+        console.warn('[Nexus Sync] Failed to load sessions from Puter Cloud:', err);
+        updateSyncStatusUI('Sync error (using local cache)', false);
       }
     }
     loadSessionsFromLocal();
   }
 
   function loadSessionsFromLocal() {
-    try {
-      const local = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      sessions = local ? JSON.parse(local) : [];
-    } catch (e) {
-      sessions = [];
-    }
+    sessions = getLocalSessions().filter(s => s && s.id && !deletedSessionIds.has(s.id));
     renderSessionList();
     restoreActiveSession();
   }
 
   async function persistSessions() {
-    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    try {
+      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    } catch (e) {
+      console.warn('[Nexus Storage] LocalStorage write error:', e);
+    }
 
-    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+    const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+    if (isSignedIn && settings.storageMode !== 'local') {
       try {
-        await puter.kv.set(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+        await writePuterFileAndKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS, sessions);
+        updateSyncStatusUI('Synced (Puter Cloud)', true);
       } catch (e) {
-        console.warn('Failed to persist to Puter KV:', e);
+        console.warn('[Nexus Sync] Failed to persist to Puter Cloud:', e);
+        updateSyncStatusUI('Sync warning (local saved)', false);
       }
     }
-    statChatCount.textContent = sessions.length;
-  }
-
-  async function syncSessionsToPuterKV() {
-    try {
-      const local = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      if (local && typeof puter !== 'undefined' && puter.kv) {
-        await puter.kv.set(STORAGE_KEY_SESSIONS, local);
-      }
-    } catch (e) {
-      console.warn('Sync to KV error:', e);
+    if (statChatCount) {
+      statChatCount.textContent = sessions.length;
     }
   }
 
@@ -1452,6 +1794,7 @@
       id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
       title: proj ? `${proj.icon || '📁'} New Chat` : 'New Conversation',
       createdAt: Date.now(),
+      updatedAt: Date.now(),
       model: (proj && proj.model) ? proj.model : settings.selectedModel,
       projectId: activeProjectId || null,
       messages: []
@@ -1496,12 +1839,14 @@
 
   function deleteSession(id, e) {
     if (e) e.stopPropagation();
+    deletedSessionIds.add(id);
     sessions = sessions.filter(s => s.id !== id);
     if (currentSessionId === id) {
       const remaining = activeProjectId ? sessions.filter(s => s.projectId === activeProjectId) : sessions;
       currentSessionId = remaining.length > 0 ? remaining[0].id : null;
     }
     persistSessions();
+    syncTombstones();
     renderSessionList();
     if (!currentSessionId) {
       createNewSession();
@@ -1535,9 +1880,13 @@
     btnModalClearChats.style.backgroundColor = '';
     btnModalClearChats.style.color = '';
 
+    sessions.forEach(s => {
+      if (s && s.id) deletedSessionIds.add(s.id);
+    });
     sessions = [];
     currentSessionId = null;
     persistSessions();
+    syncTombstones();
     createNewSession();
     closeModal(settingsModal);
     showToast('All conversations cleared');
@@ -1693,6 +2042,7 @@
       if (val && val !== session.title) {
         session.title = val;
         session.isRenamed = true;
+        session.updatedAt = Date.now();
         await persistSessions();
         if (session.id === currentSessionId && topbarChatTitle) {
           topbarChatTitle.textContent = session.title;
@@ -1750,6 +2100,7 @@
     if (val && val !== session.title) {
       session.title = val;
       session.isRenamed = true;
+      session.updatedAt = Date.now();
       await persistSessions();
       if (topbarChatTitle) {
         topbarChatTitle.textContent = session.title;
@@ -2024,6 +2375,8 @@
       timestamp: Date.now()
     };
     session.messages.push(userMsg);
+    session.updatedAt = Date.now();
+    persistSessions();
 
     clearAttachment();
     chatTextarea.value = '';
@@ -2187,6 +2540,7 @@
       assistantMsg.content = accumulatedText || '*(Empty response)*';
       assistantMsg.reasoning = accumulatedReasoning;
       session.messages.push(assistantMsg);
+      session.updatedAt = Date.now();
       await persistSessions();
 
       // Render action buttons
@@ -2215,6 +2569,7 @@
         assistantBubble.innerHTML += '<br><em style="color: var(--text-muted); font-size: 0.8rem;">[Generation stopped by user]</em>';
         assistantMsg.content = (assistantBubble.innerText || '') + ' [Stopped]';
         session.messages.push(assistantMsg);
+        session.updatedAt = Date.now();
         await persistSessions();
       } else {
         console.error('Chat error:', err);
@@ -2316,15 +2671,55 @@
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      currentAttachment = {
-        name: file.name,
-        dataUrl: event.target.result,
-        type: file.type
+      const rawDataUrl = event.target.result;
+
+      // Downscale high-resolution images so storage quota is preserved
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1280;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+        currentAttachment = {
+          name: file.name,
+          dataUrl: optimizedDataUrl,
+          type: 'image/jpeg'
+        };
+        attachmentImgPreview.src = currentAttachment.dataUrl;
+        attachmentFilename.textContent = file.name;
+        attachmentPreviewBar.style.display = 'flex';
+        btnSend.disabled = false;
       };
-      attachmentImgPreview.src = currentAttachment.dataUrl;
-      attachmentFilename.textContent = file.name;
-      attachmentPreviewBar.style.display = 'flex';
-      btnSend.disabled = false;
+      img.onerror = () => {
+        currentAttachment = {
+          name: file.name,
+          dataUrl: rawDataUrl,
+          type: file.type
+        };
+        attachmentImgPreview.src = currentAttachment.dataUrl;
+        attachmentFilename.textContent = file.name;
+        attachmentPreviewBar.style.display = 'flex';
+        btnSend.disabled = false;
+      };
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
     fileInput.value = '';
@@ -2574,7 +2969,9 @@
   // --- Startup Execution ---
   initTheme();
   initModalTabs();
+  loadLocalTombstones();
   loadLocalSettings();
+  loadSessionsFromLocal();
   initPuter();
 
 })();

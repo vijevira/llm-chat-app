@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=2.5">
+  <link rel="stylesheet" href="style.css?v=2.6">
   
   <!-- Highlight.js for code syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -172,6 +172,12 @@
         </div>
 
         <div class="topbar-right">
+          <!-- Cloud Sync Button in Header -->
+          <button class="btn-icon" id="btn-topbar-sync" title="Sync with Puter Cloud" aria-label="Sync Cloud Data">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+          </button>
           <!-- Appearance Toggle in Header -->
           <button class="btn-icon" id="btn-theme-toggle" title="Toggle Dark/Light Mode" aria-label="Appearance Mode">
             <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -554,6 +560,14 @@
             </div>
           </div>
 
+          <div class="sync-actions-row" style="margin-top: 0.75rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn-secondary" id="btn-manual-sync" type="button" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.4rem 0.85rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>Sync Cloud Now</span>
+            </button>
+            <span id="sync-last-time" style="font-size: 0.78rem; color: var(--text-muted);">Auto-sync active</span>
+          </div>
+
           <div class="form-group" style="margin-top: 1rem;">
             <label class="form-label" for="setting-display-name">Display Name</label>
             <input type="text" class="form-input" id="setting-display-name" placeholder="e.g. Alex, Tony Stark" maxlength="32" autocomplete="off" />
@@ -653,6 +667,6 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Main Chat Logic -->
-  <script src="chat.js?v=2.5"></script>
+  <script src="chat.js?v=2.6"></script>
 </body>
 </html>
