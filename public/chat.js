@@ -178,12 +178,21 @@
   const btnModalClearChats = document.getElementById('btn-modal-clear-chats');
   const toastContainer = document.getElementById('toast-container');
 
-  // Custom Project Studio Elements
-  const projectModal = document.getElementById('project-modal');
-  const btnCloseProjectModal = document.getElementById('btn-close-project-modal');
-  const btnCancelProject = document.getElementById('btn-cancel-project');
-  const btnSaveProject = document.getElementById('btn-save-project');
-  const btnDeleteProject = document.getElementById('btn-delete-project');
+  // In-Window Custom Project Studio Elements
+  const chatTopbar = document.getElementById('chat-topbar');
+  const inputAreaWrapper = document.getElementById('input-area-wrapper');
+  const projectStudioView = document.getElementById('project-studio-view');
+  const btnStudioBack = document.getElementById('btn-studio-back');
+  const btnStudioCancel = document.getElementById('btn-studio-cancel');
+  const btnStudioSave = document.getElementById('btn-studio-save');
+  const btnStudioDelete = document.getElementById('btn-studio-delete');
+  const studioHeaderIcon = document.getElementById('studio-header-icon');
+  const studioHeaderTitle = document.getElementById('studio-header-title');
+  const studioMobileToggle = document.getElementById('studio-mobile-toggle');
+  const studioEditorPane = document.getElementById('studio-editor-pane');
+  const studioPreviewPane = document.getElementById('studio-preview-pane');
+  const studioContentGrid = document.querySelector('.studio-content-grid');
+
   const projectNameInput = document.getElementById('project-name-input');
   const projectDescInput = document.getElementById('project-desc-input');
   const projectModelSelect = document.getElementById('project-model-select');
@@ -194,10 +203,15 @@
   const projectDropzone = document.getElementById('project-dropzone');
   const projectFileInput = document.getElementById('project-file-input');
   const projectFilesList = document.getElementById('project-files-list');
-  const projectModalFileCount = document.getElementById('project-modal-file-count');
   const projectTokenCount = document.getElementById('project-token-count');
-  const projectModalHeaderIcon = document.getElementById('project-modal-header-icon');
-  const projectModalTitle = document.getElementById('project-modal-title');
+
+  // Studio Live Preview Elements
+  const studioPreviewMessages = document.getElementById('studio-preview-messages');
+  const studioPreviewTextarea = document.getElementById('studio-preview-textarea');
+  const btnSendPreview = document.getElementById('btn-send-preview');
+  const btnResetPreview = document.getElementById('btn-reset-preview');
+  let studioPreviewAbortController = null;
+  let studioPreviewHistory = [];
 
   // --- Initialize Marked & Highlighting ---
   if (typeof marked !== 'undefined') {
@@ -965,7 +979,7 @@
       if (btnEdit) {
         btnEdit.addEventListener('click', (e) => {
           e.stopPropagation();
-          openProjectModal(p.id);
+          openProjectStudio(p.id);
         });
       }
 
@@ -1102,25 +1116,32 @@
     });
   }
 
-  function openProjectModal(projectId = null) {
+  function openProjectStudio(projectId = null) {
     editingProjectId = projectId;
     updateProjectModelOptions();
 
-    // Reset tabs to Overview
-    const dialog = projectModal.querySelector('.modal-dialog');
-    if (dialog) {
-      const tabBtns = dialog.querySelectorAll('.modal-tab-btn');
-      const tabPanes = dialog.querySelectorAll('.tab-content');
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabPanes.forEach(c => c.classList.remove('active'));
-      dialog.querySelector('[data-tab="tab-project-overview"]')?.classList.add('active');
-      dialog.querySelector('#tab-project-overview')?.classList.add('active');
+    // In-window transition: hide chat view and display studio view
+    if (chatTopbar) chatTopbar.style.display = 'none';
+    if (messagesContainer) messagesContainer.style.display = 'none';
+    if (inputAreaWrapper) inputAreaWrapper.style.display = 'none';
+    if (btnScrollBottom) btnScrollBottom.style.display = 'none';
+    if (projectStudioView) projectStudioView.style.display = 'flex';
+
+    // Reset mobile pane toggle
+    if (studioMobileToggle) {
+      studioMobileToggle.querySelectorAll('.studio-toggle-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.getAttribute('data-pane') === 'editor');
+      });
     }
+    if (studioContentGrid) studioContentGrid.classList.remove('show-preview');
+
+    // Reset live preview chat
+    resetStudioPreview();
 
     if (projectId) {
       const proj = projects.find(p => p.id === projectId);
       if (!proj) return;
-      if (projectModalTitle) projectModalTitle.textContent = 'Edit Project Studio';
+      if (studioHeaderTitle) studioHeaderTitle.textContent = `Edit "${proj.name}"`;
       editingProjectIcon = proj.icon || '⚡';
       if (projectNameInput) projectNameInput.value = proj.name || '';
       if (projectDescInput) projectDescInput.value = proj.description || '';
@@ -1129,9 +1150,9 @@
       if (projectContextInput) projectContextInput.value = proj.context || '';
       if (projectOutputInput) projectOutputInput.value = proj.outputGuidelines || '';
       editingProjectFiles = (proj.files || []).map(f => ({ ...f }));
-      if (btnDeleteProject) btnDeleteProject.style.display = 'inline-flex';
+      if (btnStudioDelete) btnStudioDelete.style.display = 'inline-flex';
     } else {
-      if (projectModalTitle) projectModalTitle.textContent = 'Create Custom Project';
+      if (studioHeaderTitle) studioHeaderTitle.textContent = 'Create Custom Project';
       editingProjectIcon = '⚡';
       if (projectNameInput) projectNameInput.value = '';
       if (projectDescInput) projectDescInput.value = '';
@@ -1140,10 +1161,10 @@
       if (projectContextInput) projectContextInput.value = '';
       if (projectOutputInput) projectOutputInput.value = '';
       editingProjectFiles = [];
-      if (btnDeleteProject) btnDeleteProject.style.display = 'none';
+      if (btnStudioDelete) btnStudioDelete.style.display = 'none';
     }
 
-    if (projectModalHeaderIcon) projectModalHeaderIcon.textContent = editingProjectIcon;
+    if (studioHeaderIcon) studioHeaderIcon.textContent = editingProjectIcon;
     if (emojiPickerRow) {
       emojiPickerRow.querySelectorAll('.emoji-pill').forEach(pill => {
         pill.classList.toggle('active', pill.getAttribute('data-emoji') === editingProjectIcon);
@@ -1152,8 +1173,118 @@
 
     renderProjectFilesList();
     updateProjectTokenCounter();
-    openModal(projectModal);
     setTimeout(() => projectNameInput?.focus(), 80);
+  }
+
+  function closeProjectStudio() {
+    if (studioPreviewAbortController) {
+      studioPreviewAbortController.abort();
+      studioPreviewAbortController = null;
+    }
+    if (projectStudioView) projectStudioView.style.display = 'none';
+    if (chatTopbar) chatTopbar.style.display = 'flex';
+    if (messagesContainer) messagesContainer.style.display = 'flex';
+    if (inputAreaWrapper) inputAreaWrapper.style.display = 'flex';
+    renderActiveSession();
+  }
+
+  function resetStudioPreview() {
+    if (studioPreviewAbortController) {
+      studioPreviewAbortController.abort();
+      studioPreviewAbortController = null;
+    }
+    studioPreviewHistory = [];
+    if (studioPreviewMessages) {
+      studioPreviewMessages.innerHTML = `
+        <div class="studio-preview-empty">
+          <div class="preview-empty-icon">💬</div>
+          <div class="preview-empty-text">Test your project live</div>
+          <div class="preview-empty-sub">Ask questions to verify how your custom instructions and uploaded documents behave before saving.</div>
+        </div>
+      `;
+    }
+    if (studioPreviewTextarea) studioPreviewTextarea.value = '';
+    if (btnSendPreview) btnSendPreview.disabled = true;
+  }
+
+  async function handleStudioPreviewSend() {
+    if (!studioPreviewTextarea) return;
+    const userText = studioPreviewTextarea.value.trim();
+    if (!userText || studioPreviewAbortController) return;
+
+    studioPreviewTextarea.value = '';
+    btnSendPreview.disabled = true;
+
+    // Clear empty placeholder if first message
+    const emptyPlaceholder = studioPreviewMessages.querySelector('.studio-preview-empty');
+    if (emptyPlaceholder) emptyPlaceholder.remove();
+
+    // Render user message bubble
+    const userBubble = document.createElement('div');
+    userBubble.className = 'preview-bubble user';
+    userBubble.textContent = userText;
+    studioPreviewMessages.appendChild(userBubble);
+    studioPreviewMessages.scrollTop = studioPreviewMessages.scrollHeight;
+
+    studioPreviewHistory.push({ role: 'user', content: userText });
+
+    // Render assistant placeholder bubble
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'preview-bubble assistant markdown-body';
+    assistantBubble.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Thinking...</span>';
+    studioPreviewMessages.appendChild(assistantBubble);
+    studioPreviewMessages.scrollTop = studioPreviewMessages.scrollHeight;
+
+    // Assemble draft project system prompt from the active form state
+    const draftProject = {
+      name: (projectNameInput?.value.trim()) || 'Untitled Project',
+      description: projectDescInput?.value.trim() || '',
+      intent: projectIntentInput?.value.trim() || '',
+      context: projectContextInput?.value.trim() || '',
+      outputGuidelines: projectOutputInput?.value.trim() || '',
+      files: editingProjectFiles
+    };
+
+    const draftSystemPrompt = compileProjectSystemPrompt(draftProject);
+    const chosenModel = (projectModelSelect?.value) || settings.selectedModel;
+
+    const previewPayload = [
+      { role: 'system', content: draftSystemPrompt },
+      ...studioPreviewHistory
+    ];
+
+    studioPreviewAbortController = new AbortController();
+
+    try {
+      if (typeof puter === 'undefined' || !puter.ai || !puter.ai.chat) {
+        throw new Error('Puter AI not ready');
+      }
+
+      const stream = await puter.ai.chat(previewPayload, {
+        model: chosenModel,
+        stream: true,
+        signal: studioPreviewAbortController.signal
+      });
+
+      let accumulated = '';
+      for await (const chunk of stream) {
+        if (chunk?.type === 'text' || chunk?.text) {
+          accumulated += (chunk.text || '');
+          assistantBubble.innerHTML = formatMarkdown(accumulated);
+          attachCodeCopyHandlers(assistantBubble);
+          studioPreviewMessages.scrollTop = studioPreviewMessages.scrollHeight;
+        }
+      }
+
+      studioPreviewHistory.push({ role: 'assistant', content: accumulated || '(Empty)' });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        assistantBubble.innerHTML = `<span style="color: var(--danger-color);">⚠️ ${escapeHtml(err.message || 'Error occurred')}</span>`;
+      }
+    } finally {
+      studioPreviewAbortController = null;
+      if (studioPreviewTextarea) studioPreviewTextarea.focus();
+    }
   }
 
   async function saveProject() {
@@ -1189,7 +1320,7 @@
     }
 
     await persistProjects();
-    closeModal(projectModal);
+    closeProjectStudio();
     selectProject(projectData.id);
     showToast(`Project "${projectData.name}" saved!`);
   }
@@ -1211,7 +1342,7 @@
 
     await persistProjects();
     await persistSessions();
-    closeModal(projectModal);
+    closeProjectStudio();
     renderProjectsList();
     renderSessionList();
     restoreActiveSession();
@@ -2293,33 +2424,33 @@
     modal.classList.remove('active');
   }
 
-  // --- Project Modal & Project Topbar Listeners ---
+  // --- In-Window Project Studio Listeners ---
   if (btnCreateProject) {
-    btnCreateProject.addEventListener('click', () => openProjectModal(null));
+    btnCreateProject.addEventListener('click', () => openProjectStudio(null));
   }
 
   if (btnEditActiveProject) {
-    btnEditActiveProject.addEventListener('click', () => openProjectModal(activeProjectId));
+    btnEditActiveProject.addEventListener('click', () => openProjectStudio(activeProjectId));
   }
 
   if (btnExitProject) {
     btnExitProject.addEventListener('click', exitProject);
   }
 
-  if (btnCloseProjectModal) {
-    btnCloseProjectModal.addEventListener('click', () => closeModal(projectModal));
+  if (btnStudioBack) {
+    btnStudioBack.addEventListener('click', closeProjectStudio);
   }
 
-  if (btnCancelProject) {
-    btnCancelProject.addEventListener('click', () => closeModal(projectModal));
+  if (btnStudioCancel) {
+    btnStudioCancel.addEventListener('click', closeProjectStudio);
   }
 
-  if (btnSaveProject) {
-    btnSaveProject.addEventListener('click', saveProject);
+  if (btnStudioSave) {
+    btnStudioSave.addEventListener('click', saveProject);
   }
 
-  if (btnDeleteProject) {
-    btnDeleteProject.addEventListener('click', () => deleteProject(editingProjectId));
+  if (btnStudioDelete) {
+    btnStudioDelete.addEventListener('click', () => deleteProject(editingProjectId));
   }
 
   if (emojiPickerRow) {
@@ -2329,7 +2460,7 @@
       emojiPickerRow.querySelectorAll('.emoji-pill').forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
       editingProjectIcon = pill.getAttribute('data-emoji') || '⚡';
-      if (projectModalHeaderIcon) projectModalHeaderIcon.textContent = editingProjectIcon;
+      if (studioHeaderIcon) studioHeaderIcon.textContent = editingProjectIcon;
     });
   }
 
@@ -2375,7 +2506,44 @@
     }
   });
 
-  [modelModal, settingsModal, projectModal].forEach(modal => {
+  // Studio Live Preview Listeners
+  if (studioPreviewTextarea) {
+    studioPreviewTextarea.addEventListener('input', () => {
+      if (btnSendPreview) {
+        btnSendPreview.disabled = !studioPreviewTextarea.value.trim();
+      }
+    });
+
+    studioPreviewTextarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleStudioPreviewSend();
+      }
+    });
+  }
+
+  if (btnSendPreview) {
+    btnSendPreview.addEventListener('click', handleStudioPreviewSend);
+  }
+
+  if (btnResetPreview) {
+    btnResetPreview.addEventListener('click', resetStudioPreview);
+  }
+
+  if (studioMobileToggle) {
+    studioMobileToggle.addEventListener('click', (e) => {
+      const pill = e.target.closest('.studio-toggle-pill');
+      if (!pill) return;
+      studioMobileToggle.querySelectorAll('.studio-toggle-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const pane = pill.getAttribute('data-pane');
+      if (studioContentGrid) {
+        studioContentGrid.classList.toggle('show-preview', pane === 'preview');
+      }
+    });
+  }
+
+  [modelModal, settingsModal].forEach(modal => {
     if (!modal) return;
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
@@ -2384,9 +2552,12 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (projectStudioView && projectStudioView.style.display !== 'none') {
+        closeProjectStudio();
+        return;
+      }
       closeModal(modelModal);
       closeModal(settingsModal);
-      if (projectModal) closeModal(projectModal);
     }
   });
 
