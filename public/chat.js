@@ -281,7 +281,7 @@
   async function persistSettings() {
     try {
       localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
-      if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+      if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode !== 'local') {
         await puter.kv.set(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
       }
     } catch (e) {
@@ -290,12 +290,13 @@
   }
 
   async function loadCloudSettings() {
-    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn()) {
       try {
         const cloudSettings = await puter.kv.get(STORAGE_KEY_SETTINGS);
         if (cloudSettings) {
           const parsed = typeof cloudSettings === 'string' ? JSON.parse(cloudSettings) : cloudSettings;
           settings = { ...settings, ...parsed };
+          localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
           updateModelButtonUI();
         }
       } catch (err) {
@@ -484,9 +485,9 @@
         await puter.auth.signIn();
         if (puter.auth.isSignedIn()) {
           const user = await puter.auth.getUser();
-          updateAuthUI();
-          showToast(`Welcome back, ${user.username || 'friend'}!`);
-          await syncSessionsToPuterKV();
+          await loadCloudSettings();
+          await updateAuthUI();
+          showToast(`Welcome back, ${getEffectiveDisplayName() || user.username || 'friend'}!`);
           await loadSessions();
         }
       } catch (err) {
