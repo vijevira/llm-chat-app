@@ -70,6 +70,7 @@
     temperature: 0.7,
     selectedModel: DEFAULT_MODEL,
     storageMode: 'cloud',
+    displayName: '',
     customUsername: ''
   };
 
@@ -144,8 +145,10 @@
   const btnModalAuth = document.getElementById('btn-modal-auth');
   const statSyncStatus = document.getElementById('stat-sync-status');
   const statChatCount = document.getElementById('stat-chat-count');
+  const settingDisplayName = document.getElementById('setting-display-name');
   const settingCustomUsername = document.getElementById('setting-custom-username');
   const btnResetUsername = document.getElementById('btn-reset-username');
+  const linkManagePuter = document.getElementById('link-manage-puter');
   const settingStorageMode = document.getElementById('setting-storage-mode');
 
   const settingPersonaPreset = document.getElementById('setting-persona-preset');
@@ -228,23 +231,37 @@
     });
   }
 
-  function getEffectiveUsername() {
+  function getEffectiveDisplayName() {
+    if (settings.displayName && settings.displayName.trim()) {
+      return settings.displayName.trim();
+    }
     if (settings.customUsername && settings.customUsername.trim()) {
       return settings.customUsername.trim();
     }
-    if (puterUser && (puterUser.username || puterUser.name)) {
-      return puterUser.username || puterUser.name;
+    if (puterUser && (puterUser.name || puterUser.username)) {
+      return puterUser.name || puterUser.username;
     }
     return 'Guest User';
   }
 
+  function getEffectiveUsernameHandle() {
+    if (settings.customUsername && settings.customUsername.trim()) {
+      return settings.customUsername.trim().replace(/^@+/, '');
+    }
+    if (puterUser && puterUser.username) {
+      return puterUser.username;
+    }
+    return '';
+  }
+
   function getEffectiveUserInitial() {
-    const name = getEffectiveUsername();
+    const name = getEffectiveDisplayName();
     if (name && name !== 'Guest User') {
       return name.charAt(0).toUpperCase();
     }
-    if (puterUser && puterUser.username) {
-      return puterUser.username.charAt(0).toUpperCase();
+    const handle = getEffectiveUsernameHandle();
+    if (handle) {
+      return handle.charAt(0).toUpperCase();
     }
     return '?';
   }
@@ -293,6 +310,9 @@
     settingTemperature.value = settings.temperature;
     tempValDisplay.textContent = settings.temperature;
     settingStorageMode.value = settings.storageMode || 'cloud';
+    if (settingDisplayName) {
+      settingDisplayName.value = settings.displayName || '';
+    }
     if (settingCustomUsername) {
       settingCustomUsername.value = settings.customUsername || '';
     }
@@ -305,24 +325,39 @@
     settings.systemPrompt = settingSystemPrompt.value.trim() || PERSONA_PRESETS.default;
     settings.temperature = parseFloat(settingTemperature.value) || 0.7;
     settings.storageMode = settingStorageMode.value;
+    if (settingDisplayName) {
+      settings.displayName = settingDisplayName.value.trim();
+    }
     if (settingCustomUsername) {
-      settings.customUsername = settingCustomUsername.value.trim();
+      settings.customUsername = settingCustomUsername.value.trim().replace(/^@+/, '');
+    }
+
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && typeof puter.auth.updateProfile === 'function') {
+      try {
+        const nameToSync = settings.displayName || settings.customUsername;
+        if (nameToSync) {
+          await puter.auth.updateProfile({ displayName: nameToSync });
+        }
+      } catch (err) {
+        console.warn('Could not sync to Puter profile:', err);
+      }
     }
 
     await persistSettings();
     updateAuthUI();
     renderActiveSession();
-    showToast('Settings saved successfully');
+    showToast('Profile and settings saved successfully');
     closeModal(settingsModal);
   }
 
   if (btnResetUsername) {
     btnResetUsername.addEventListener('click', () => {
+      if (settingDisplayName) settingDisplayName.value = '';
       if (settingCustomUsername) {
-        settingCustomUsername.value = '';
+        settingCustomUsername.value = puterUser ? puterUser.username : '';
         settingCustomUsername.focus();
-        showToast('Display name cleared. Click Save to apply.');
       }
+      showToast('Reset to default account credentials. Click Save to apply.');
     });
   }
 
@@ -379,49 +414,55 @@
     if (isSignedIn) {
       try {
         puterUser = await puter.auth.getUser();
-        const effectiveName = getEffectiveUsername();
+        const displayName = getEffectiveDisplayName();
+        const handle = getEffectiveUsernameHandle();
         const initial = getEffectiveUserInitial();
 
-        userName.textContent = effectiveName;
-        userTier.textContent = settings.customUsername ? `@${puterUser.username || 'user'} • Puter Cloud` : 'Puter Cloud Synced';
+        userName.textContent = displayName;
+        userTier.textContent = `@${handle || puterUser.username || 'user'} • Puter Cloud`;
         userAvatar.textContent = initial;
         userStatusDot.className = 'user-status-dot';
 
-        modalAccountName.textContent = effectiveName;
+        modalAccountName.textContent = displayName;
         modalAccountStatus.textContent = settings.customUsername
-          ? `Signed in as @${puterUser.username || 'user'} (Puter Account)`
-          : 'Connected via Puter Account';
+          ? `@${handle} (Puter Cloud: @${puterUser.username || 'user'})`
+          : `@${puterUser.username || 'user'} • Puter Cloud Account`;
         modalAccountAvatar.textContent = initial;
         btnModalAuth.textContent = 'Sign Out';
         btnModalAuth.className = 'btn-secondary';
         statSyncStatus.textContent = 'Synced (Puter KV)';
         statSyncStatus.style.color = 'var(--success-color)';
+
+        if (linkManagePuter) linkManagePuter.style.display = 'inline-flex';
       } catch (e) {
         console.warn('Failed to get user:', e);
       }
     } else {
       puterUser = null;
-      const effectiveName = getEffectiveUsername();
+      const displayName = getEffectiveDisplayName();
+      const handle = getEffectiveUsernameHandle();
       const initial = getEffectiveUserInitial();
 
-      userName.textContent = effectiveName;
-      userTier.textContent = 'Click to connect Puter';
+      userName.textContent = displayName;
+      userTier.textContent = handle ? `@${handle} • Local` : 'Click to connect Puter';
       userAvatar.textContent = initial;
       userStatusDot.className = 'user-status-dot offline';
 
-      modalAccountName.textContent = effectiveName;
-      modalAccountStatus.textContent = 'Saved in browser local storage';
+      modalAccountName.textContent = displayName;
+      modalAccountStatus.textContent = handle ? `@${handle} • Local guest profile` : 'Saved in browser local storage';
       modalAccountAvatar.textContent = initial;
       btnModalAuth.textContent = 'Sign In with Puter';
       btnModalAuth.className = 'btn-primary';
       statSyncStatus.textContent = 'Local Storage Only';
       statSyncStatus.style.color = 'var(--text-muted)';
+
+      if (linkManagePuter) linkManagePuter.style.display = 'none';
     }
 
     const welcomeUsername = document.getElementById('welcome-username');
     if (welcomeUsername) {
-      const effectiveName = getEffectiveUsername();
-      welcomeUsername.textContent = (effectiveName !== 'Guest User') ? effectiveName : 'human';
+      const displayName = getEffectiveDisplayName();
+      welcomeUsername.textContent = (displayName !== 'Guest User') ? displayName : 'human';
     }
 
     statChatCount.textContent = sessions.length;

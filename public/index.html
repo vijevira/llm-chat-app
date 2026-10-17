@@ -51,7 +51,7 @@
           </svg>
           <div class="brand-text-col">
             <span class="brand-title">Nexus AI</span>
-            <span class="brand-badge">Puter.js Multi-Model</span>
+            <span class="brand-badge">Multi-Model</span>
           </div>
         </a>
         <button class="btn-gemini-icon" id="btn-close-sidebar" title="Collapse sidebar" aria-label="Collapse sidebar">
@@ -319,6 +319,10 @@
               <div class="account-details">
                 <h3 id="modal-account-name">Guest User</h3>
                 <p id="modal-account-status">Not connected to Puter</p>
+                <a href="https://puter.com/dashboard#account" target="_blank" rel="noopener noreferrer" class="link-manage-puter" id="link-manage-puter" style="display: none;">
+                  <span>Manage Puter.com account</span>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
               </div>
             </div>
             <button class="btn-primary" id="btn-modal-auth">Sign In with Puter</button>
@@ -336,12 +340,21 @@
           </div>
 
           <div class="form-group" style="margin-top: 1rem;">
-            <label class="form-label" for="setting-custom-username">Display Name / Custom Username</label>
+            <label class="form-label" for="setting-display-name">Display Name</label>
+            <input type="text" class="form-input" id="setting-display-name" placeholder="e.g. Alex, Tony Stark" maxlength="32" autocomplete="off" />
+            <span class="form-hint">Used in welcome greetings and chat profile headers.</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="setting-custom-username">Username (@handle)</label>
             <div class="custom-username-group">
-              <input type="text" class="form-input" id="setting-custom-username" placeholder="Enter custom display name (e.g. Alex, Maya)" maxlength="32" autocomplete="off" />
-              <button class="btn-secondary" type="button" id="btn-reset-username" title="Reset to Puter default name" style="white-space: nowrap;">Reset</button>
+              <div class="input-prefix-wrapper">
+                <span class="input-prefix">@</span>
+                <input type="text" class="form-input with-prefix" id="setting-custom-username" placeholder="handle (e.g. alex_dev)" maxlength="32" autocomplete="off" />
+              </div>
+              <button class="btn-secondary" type="button" id="btn-reset-username" title="Reset to Puter default handle" style="white-space: nowrap;">Reset</button>
             </div>
-            <span class="form-hint">Customize how Nexus AI addresses you across greetings, chats, and your profile instead of Puter's auto-generated username.</span>
+            <span class="form-hint">Custom handle to override Puter's auto-generated <code>user-xxxx</code> handle across the entire app.</span>
           </div>
 
           <div class="form-group">

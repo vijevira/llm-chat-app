@@ -1394,8 +1394,41 @@ body.sidebar-closed #btn-toggle-sidebar,
   gap: 0.5rem;
 }
 
-.custom-username-group .form-input {
+.input-prefix-wrapper {
+  display: flex;
+  align-items: center;
   flex: 1;
+  position: relative;
+}
+
+.input-prefix {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+
+.form-input.with-prefix {
+  width: 100%;
+  padding-left: 2rem;
+}
+
+.link-manage-puter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--accent-color);
+  text-decoration: none;
+  margin-top: 0.25rem;
+  transition: opacity 0.15s ease;
+}
+
+.link-manage-puter:hover {
+  text-decoration: underline;
+  opacity: 0.85;
 }
 
 .modal-footer {
