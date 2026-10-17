@@ -69,8 +69,11 @@
     systemPrompt: PERSONA_PRESETS.default,
     temperature: 0.7,
     selectedModel: DEFAULT_MODEL,
-    storageMode: 'cloud'
+    storageMode: 'cloud',
+    customUsername: ''
   };
+
+  let puterUser = null;
 
   // --- DOM Elements ---
   const sidebar = document.getElementById('sidebar');
@@ -88,6 +91,13 @@
   const userTier = document.getElementById('user-tier');
 
   const topbarChatTitle = document.getElementById('topbar-chat-title');
+  const topbarTitleDisplay = document.getElementById('topbar-title-display');
+  const btnRenameTopbar = document.getElementById('btn-rename-topbar');
+  const topbarRenameForm = document.getElementById('topbar-rename-form');
+  const topbarRenameInput = document.getElementById('topbar-rename-input');
+  const btnSaveTopbarRename = document.getElementById('btn-save-topbar-rename');
+  const btnCancelTopbarRename = document.getElementById('btn-cancel-topbar-rename');
+
   const btnThemeToggle = document.getElementById('btn-theme-toggle');
   const themeIconSun = document.getElementById('theme-icon-sun');
   const themeIconMoon = document.getElementById('theme-icon-moon');
@@ -134,6 +144,8 @@
   const btnModalAuth = document.getElementById('btn-modal-auth');
   const statSyncStatus = document.getElementById('stat-sync-status');
   const statChatCount = document.getElementById('stat-chat-count');
+  const settingCustomUsername = document.getElementById('setting-custom-username');
+  const btnResetUsername = document.getElementById('btn-reset-username');
   const settingStorageMode = document.getElementById('setting-storage-mode');
 
   const settingPersonaPreset = document.getElementById('setting-persona-preset');
@@ -216,6 +228,27 @@
     });
   }
 
+  function getEffectiveUsername() {
+    if (settings.customUsername && settings.customUsername.trim()) {
+      return settings.customUsername.trim();
+    }
+    if (puterUser && (puterUser.username || puterUser.name)) {
+      return puterUser.username || puterUser.name;
+    }
+    return 'Guest User';
+  }
+
+  function getEffectiveUserInitial() {
+    const name = getEffectiveUsername();
+    if (name && name !== 'Guest User') {
+      return name.charAt(0).toUpperCase();
+    }
+    if (puterUser && puterUser.username) {
+      return puterUser.username.charAt(0).toUpperCase();
+    }
+    return '?';
+  }
+
   function loadLocalSettings() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
@@ -228,25 +261,69 @@
     updateModelButtonUI();
   }
 
+  async function persistSettings() {
+    try {
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+      if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+        await puter.kv.set(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+      }
+    } catch (e) {
+      console.warn('Failed to persist settings:', e);
+    }
+  }
+
+  async function loadCloudSettings() {
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+      try {
+        const cloudSettings = await puter.kv.get(STORAGE_KEY_SETTINGS);
+        if (cloudSettings) {
+          const parsed = typeof cloudSettings === 'string' ? JSON.parse(cloudSettings) : cloudSettings;
+          settings = { ...settings, ...parsed };
+          updateModelButtonUI();
+        }
+      } catch (err) {
+        console.warn('Failed to load settings from Puter KV:', err);
+      }
+    }
+  }
+
   function populateSettingsModal() {
     settingPersonaPreset.value = settings.personaPreset || 'default';
     settingSystemPrompt.value = settings.systemPrompt || PERSONA_PRESETS.default;
     settingTemperature.value = settings.temperature;
     tempValDisplay.textContent = settings.temperature;
     settingStorageMode.value = settings.storageMode || 'cloud';
+    if (settingCustomUsername) {
+      settingCustomUsername.value = settings.customUsername || '';
+    }
     statChatCount.textContent = sessions.length;
     updateAuthUI();
   }
 
-  function saveSettings() {
+  async function saveSettings() {
     settings.personaPreset = settingPersonaPreset.value;
     settings.systemPrompt = settingSystemPrompt.value.trim() || PERSONA_PRESETS.default;
     settings.temperature = parseFloat(settingTemperature.value) || 0.7;
     settings.storageMode = settingStorageMode.value;
+    if (settingCustomUsername) {
+      settings.customUsername = settingCustomUsername.value.trim();
+    }
 
-    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+    await persistSettings();
+    updateAuthUI();
+    renderActiveSession();
     showToast('Settings saved successfully');
     closeModal(settingsModal);
+  }
+
+  if (btnResetUsername) {
+    btnResetUsername.addEventListener('click', () => {
+      if (settingCustomUsername) {
+        settingCustomUsername.value = '';
+        settingCustomUsername.focus();
+        showToast('Display name cleared. Click Save to apply.');
+      }
+    });
   }
 
   settingPersonaPreset.addEventListener('change', (e) => {
@@ -286,7 +363,8 @@
     }
 
     try {
-      updateAuthUI();
+      await loadCloudSettings();
+      await updateAuthUI();
       fetchPuterModels();
       await loadSessions();
     } catch (err) {
@@ -300,16 +378,20 @@
 
     if (isSignedIn) {
       try {
-        const user = await puter.auth.getUser();
-        const displayName = user.username || user.name || 'Puter User';
-        userName.textContent = displayName;
-        userTier.textContent = 'Puter Cloud Synced';
-        userAvatar.textContent = displayName.charAt(0).toUpperCase();
+        puterUser = await puter.auth.getUser();
+        const effectiveName = getEffectiveUsername();
+        const initial = getEffectiveUserInitial();
+
+        userName.textContent = effectiveName;
+        userTier.textContent = settings.customUsername ? `@${puterUser.username || 'user'} • Puter Cloud` : 'Puter Cloud Synced';
+        userAvatar.textContent = initial;
         userStatusDot.className = 'user-status-dot';
 
-        modalAccountName.textContent = displayName;
-        modalAccountStatus.textContent = 'Connected via Puter Account';
-        modalAccountAvatar.textContent = displayName.charAt(0).toUpperCase();
+        modalAccountName.textContent = effectiveName;
+        modalAccountStatus.textContent = settings.customUsername
+          ? `Signed in as @${puterUser.username || 'user'} (Puter Account)`
+          : 'Connected via Puter Account';
+        modalAccountAvatar.textContent = initial;
         btnModalAuth.textContent = 'Sign Out';
         btnModalAuth.className = 'btn-secondary';
         statSyncStatus.textContent = 'Synced (Puter KV)';
@@ -318,14 +400,18 @@
         console.warn('Failed to get user:', e);
       }
     } else {
-      userName.textContent = 'Guest User';
+      puterUser = null;
+      const effectiveName = getEffectiveUsername();
+      const initial = getEffectiveUserInitial();
+
+      userName.textContent = effectiveName;
       userTier.textContent = 'Click to connect Puter';
-      userAvatar.textContent = '?';
+      userAvatar.textContent = initial;
       userStatusDot.className = 'user-status-dot offline';
 
-      modalAccountName.textContent = 'Guest User';
+      modalAccountName.textContent = effectiveName;
       modalAccountStatus.textContent = 'Saved in browser local storage';
-      modalAccountAvatar.textContent = '?';
+      modalAccountAvatar.textContent = initial;
       btnModalAuth.textContent = 'Sign In with Puter';
       btnModalAuth.className = 'btn-primary';
       statSyncStatus.textContent = 'Local Storage Only';
@@ -334,7 +420,8 @@
 
     const welcomeUsername = document.getElementById('welcome-username');
     if (welcomeUsername) {
-      welcomeUsername.textContent = isSignedIn ? (userName.textContent || 'human') : 'human';
+      const effectiveName = getEffectiveUsername();
+      welcomeUsername.textContent = (effectiveName !== 'Guest User') ? effectiveName : 'human';
     }
 
     statChatCount.textContent = sessions.length;
@@ -621,7 +708,7 @@
 
   function selectModel(id, name, provider) {
     settings.selectedModel = id;
-    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+    persistSettings();
     updateModelButtonUI(name, provider);
     showToast(`Active model: ${name || id}`);
   }
@@ -850,20 +937,171 @@
     sessions.forEach(s => {
       const item = document.createElement('div');
       item.className = 'chat-item' + (s.id === currentSessionId ? ' active' : '');
+      item.setAttribute('data-id', s.id);
       item.innerHTML = `
         <span class="chat-item-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
         <div class="chat-item-actions">
-          <button class="icon-btn-sm btn-delete-chat" title="Delete conversation">
+          <button class="icon-btn-sm btn-rename-chat" title="Rename conversation" aria-label="Rename conversation">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+            </svg>
+          </button>
+          <button class="icon-btn-sm btn-delete-chat" title="Delete conversation" aria-label="Delete conversation">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           </button>
         </div>
       `;
 
-      item.addEventListener('click', () => switchSession(s.id));
+      item.addEventListener('click', () => {
+        if (item.classList.contains('editing')) return;
+        switchSession(s.id);
+      });
+
       const btnDel = item.querySelector('.btn-delete-chat');
       btnDel.addEventListener('click', (e) => deleteSession(s.id, e));
 
+      const btnRename = item.querySelector('.btn-rename-chat');
+      btnRename.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startSidebarInlineRename(item, s);
+      });
+
+      const titleSpan = item.querySelector('.chat-item-title');
+      titleSpan.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startSidebarInlineRename(item, s);
+      });
+
       chatHistoryList.appendChild(item);
+    });
+  }
+
+  function startSidebarInlineRename(item, session) {
+    // If another item is currently being edited, reset by re-rendering
+    const alreadyEditing = chatHistoryList.querySelector('.chat-item.editing');
+    if (alreadyEditing && alreadyEditing !== item) {
+      renderSessionList();
+      item = chatHistoryList.querySelector(`[data-id="${session.id}"]`);
+      if (!item) return;
+    }
+
+    item.classList.add('editing');
+    item.innerHTML = `
+      <div class="chat-item-rename-box">
+        <input type="text" class="chat-item-rename-input" value="${escapeHtml(session.title)}" maxlength="60" />
+        <button class="icon-btn-sm btn-confirm-rename" title="Save name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+        <button class="icon-btn-sm btn-cancel-rename" title="Cancel">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    `;
+
+    const input = item.querySelector('.chat-item-rename-input');
+    const btnConfirm = item.querySelector('.btn-confirm-rename');
+    const btnCancel = item.querySelector('.btn-cancel-rename');
+
+    input.focus();
+    input.select();
+
+    const commitRename = async (e) => {
+      if (e) e.stopPropagation();
+      const val = input.value.trim();
+      if (val && val !== session.title) {
+        session.title = val;
+        session.isRenamed = true;
+        await persistSessions();
+        if (session.id === currentSessionId && topbarChatTitle) {
+          topbarChatTitle.textContent = session.title;
+        }
+        showToast('Conversation renamed');
+      }
+      renderSessionList();
+    };
+
+    const cancelRename = (e) => {
+      if (e) e.stopPropagation();
+      renderSessionList();
+    };
+
+    btnConfirm.addEventListener('click', commitRename);
+    btnCancel.addEventListener('click', cancelRename);
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commitRename(e);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelRename(e);
+      }
+    });
+
+    input.addEventListener('click', (e) => e.stopPropagation());
+  }
+
+  // --- Topbar Title Rename Functions & Listeners ---
+  function startTopbarRename() {
+    const session = getActiveSession();
+    if (!session || !topbarRenameForm || !topbarRenameInput || !topbarTitleDisplay) return;
+
+    topbarRenameInput.value = session.title || 'New Conversation';
+    topbarTitleDisplay.style.display = 'none';
+    topbarRenameForm.style.display = 'flex';
+    topbarRenameInput.focus();
+    topbarRenameInput.select();
+  }
+
+  function cancelTopbarRename() {
+    if (topbarTitleDisplay && topbarRenameForm) {
+      topbarTitleDisplay.style.display = 'flex';
+      topbarRenameForm.style.display = 'none';
+    }
+  }
+
+  async function saveTopbarRename() {
+    const session = getActiveSession();
+    if (!session || !topbarRenameInput) return;
+
+    const val = topbarRenameInput.value.trim();
+    if (val && val !== session.title) {
+      session.title = val;
+      session.isRenamed = true;
+      await persistSessions();
+      if (topbarChatTitle) {
+        topbarChatTitle.textContent = session.title;
+      }
+      renderSessionList();
+      showToast('Conversation renamed');
+    }
+    cancelTopbarRename();
+  }
+
+  if (topbarTitleDisplay) {
+    topbarTitleDisplay.addEventListener('click', startTopbarRename);
+  }
+  if (btnRenameTopbar) {
+    btnRenameTopbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startTopbarRename();
+    });
+  }
+  if (btnSaveTopbarRename) {
+    btnSaveTopbarRename.addEventListener('click', saveTopbarRename);
+  }
+  if (btnCancelTopbarRename) {
+    btnCancelTopbarRename.addEventListener('click', cancelTopbarRename);
+  }
+  if (topbarRenameInput) {
+    topbarRenameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        saveTopbarRename();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelTopbarRename();
+      }
     });
   }
 
@@ -875,6 +1113,7 @@
   }
 
   function renderActiveSession() {
+    cancelTopbarRename();
     const session = getActiveSession();
     messagesInner.innerHTML = '';
 
@@ -912,7 +1151,7 @@
         </svg>
       `;
     } else {
-      avatar.textContent = 'U';
+      avatar.textContent = getEffectiveUserInitial();
     }
 
     const container = document.createElement('div');
@@ -1077,8 +1316,10 @@
     }
 
     if (session.messages.length === 0) {
-      session.title = text.slice(0, 36) || 'Image Chat';
-      if (topbarChatTitle) topbarChatTitle.textContent = session.title;
+      if (!session.isRenamed) {
+        session.title = text.slice(0, 36) || 'Image Chat';
+        if (topbarChatTitle) topbarChatTitle.textContent = session.title;
+      }
       renderSessionList();
     }
 
@@ -1433,8 +1674,17 @@
   btnScrollBottom.addEventListener('click', scrollToBottom);
 
   // --- Gemini Sidebar Toggle Logic ---
+  function updateSidebarToggleUI(isClosed) {
+    document.body.classList.toggle('sidebar-closed', isClosed);
+    if (btnToggleSidebar) {
+      btnToggleSidebar.title = isClosed ? 'Open sidebar' : 'Close sidebar';
+      btnToggleSidebar.setAttribute('aria-label', isClosed ? 'Open sidebar' : 'Close sidebar');
+    }
+  }
+
   function openSidebar() {
     sidebar.classList.remove('closed');
+    updateSidebarToggleUI(false);
     if (window.innerWidth <= 768 && sidebarBackdrop) {
       sidebarBackdrop.classList.add('active');
     }
@@ -1442,6 +1692,7 @@
 
   function closeSidebar() {
     sidebar.classList.add('closed');
+    updateSidebarToggleUI(true);
     if (sidebarBackdrop) {
       sidebarBackdrop.classList.remove('active');
     }
@@ -1456,9 +1707,13 @@
   }
 
   if (btnToggleSidebar) btnToggleSidebar.addEventListener('click', toggleSidebar);
-  if (btnSidebarCollapse) btnSidebarCollapse.addEventListener('click', closeSidebar);
   if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', closeSidebar);
   if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeSidebar);
+
+  // Sync initial state
+  if (sidebar) {
+    updateSidebarToggleUI(sidebar.classList.contains('closed'));
+  }
 
   // --- Modal Utilities ---
   function openModal(modal) {

@@ -132,20 +132,12 @@ body {
 }
 
 .sidebar-header {
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1.15rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
   height: 60px;
   box-sizing: border-box;
-}
-
-.sidebar-header-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
 }
 
 .brand {
@@ -271,12 +263,38 @@ body {
   display: flex;
 }
 
+.chat-item.editing {
+  background-color: var(--bg-tertiary);
+  padding: 0.35rem 0.5rem;
+}
+
+.chat-item-rename-box {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.chat-item-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  border: 1px solid var(--accent-color);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
 .icon-btn-sm {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0.3rem;
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
@@ -285,8 +303,25 @@ body {
 }
 
 .icon-btn-sm:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+.btn-rename-chat:hover,
+.btn-rename-topbar:hover {
+  color: var(--accent-color);
+  background-color: var(--accent-light);
+}
+
+.btn-delete-chat:hover,
+.btn-cancel-rename:hover {
   color: var(--danger-color);
   background-color: var(--danger-light);
+}
+
+.btn-confirm-rename:hover {
+  color: var(--success-color);
+  background-color: rgba(52, 168, 83, 0.15);
 }
 
 /* Sidebar Footer (Profile / Settings) */
@@ -420,8 +455,24 @@ body {
 .topbar-title-wrap {
   display: flex;
   align-items: center;
-  overflow: hidden;
-  max-width: 240px;
+  position: relative;
+  max-width: 320px;
+  min-width: 0;
+}
+
+.topbar-title-display {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.topbar-title-display:hover {
+  background-color: var(--bg-hover);
 }
 
 .topbar-chat-title {
@@ -431,6 +482,40 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
+}
+
+.btn-rename-topbar {
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity 0.15s ease, color 0.15s ease;
+  padding: 0.2rem;
+}
+
+.topbar-title-display:hover .btn-rename-topbar {
+  opacity: 1;
+}
+
+.topbar-rename-form {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.topbar-rename-input {
+  min-width: 160px;
+  max-width: 240px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: inherit;
+  border: 1px solid var(--accent-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-light);
 }
 
 /* Google Gemini Standard Circular Icon Button (40px) */
@@ -471,6 +556,46 @@ body {
 .btn-gemini-icon:focus-visible,
 .btn-icon:focus-visible {
   box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+/* Sidebar Header [|<] Collapse Button */
+#btn-close-sidebar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+#btn-close-sidebar:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Topbar Header [|>] Open Button */
+#btn-toggle-sidebar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+#btn-toggle-sidebar:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* When sidebar is OPEN on desktop: Hide topbar open button completely (removes header duplicate!) */
+@media (min-width: 769px) {
+  body:not(.sidebar-closed) #btn-toggle-sidebar,
+  .sidebar:not(.closed) ~ .main-chat #btn-toggle-sidebar {
+    display: none !important;
+  }
+}
+
+/* When sidebar is CLOSED: Topbar open button is visible with [|>] */
+body.sidebar-closed #btn-toggle-sidebar,
+.sidebar.closed ~ .main-chat #btn-toggle-sidebar {
+  display: inline-flex !important;
 }
 
 /* Gemini Model Selector Pill */
@@ -1261,6 +1386,16 @@ body {
 
 .form-input:focus, .form-textarea:focus, .form-select:focus {
   border-color: var(--border-focus);
+}
+
+.custom-username-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.custom-username-group .form-input {
+  flex: 1;
 }
 
 .modal-footer {
