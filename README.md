@@ -1,144 +1,117 @@
-# LLM Chat Application Template
+# LLM Chat Application — Powered by Puter.js
 
-A simple, ready-to-deploy chat application template powered by Cloudflare Workers AI. This template provides a clean starting point for building AI chat applications with streaming responses.
+A modern, serverless AI chat application built with **[Puter.js](https://docs.puter.com/llms.txt)**. Access 500+ AI models (OpenAI, Anthropic, Google, Meta Llama, DeepSeek, Mistral, xAI) directly in the browser with real-time streaming, Puter cloud persistence, and zero API key management.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/llm-chat-app-template)
+> Powered by [Puter](https://developer.puter.com).
 
-<!-- dash-content-start -->
+---
 
-## Demo
+## ✨ Features
 
-This template demonstrates how to build an AI-powered chat interface using Cloudflare Workers AI with streaming responses. It features:
+- 🧠 **500+ AI Models Supported**: Switch on-the-fly between Claude 3.5 Sonnet, GPT-4o, Gemini 2.0 Flash, DeepSeek R1/V3, Llama 3.3 70B, and more.
+- ⚡ **Real-Time Streaming**: Live streaming with `puter.ai.chat(..., { stream: true })`.
+- 💭 **Extended Thinking / Reasoning Visualization**: Live collapsible thinking process display for reasoning models (DeepSeek R1, OpenAI o1/o3-mini, Gemini thinking).
+- 🔐 **Puter Authentication**: One-click Sign-In with Puter (`puter.auth.signIn()`) with profile and avatar integration.
+- ☁️ **Cloud Chat Sync via Puter KV**: Automatically saves and syncs conversation histories across devices using Puter's key-value database (`puter.kv.set()` / `puter.kv.get()`), with local fallback.
+- 🎨 **Rich Formatting & Syntax Highlighting**: Client-side Markdown rendering with Marked.js and syntax-highlighted code blocks with a one-click "Copy Code" button.
+- 🖼️ **Multimodal Support**: Attach images directly to prompts for visual analysis with supported vision models.
+- ⚙️ **Custom System Prompts & Temperature**: Customize the assistant persona and creativity directly in the settings modal.
+- 🌓 **Dark & Light Mode**: Clean, responsive design optimized for mobile and desktop.
+- 🛑 **Stop Generation**: Cancel generation in real-time with `AbortController`.
 
-- Real-time streaming of AI responses using Server-Sent Events (SSE)
-- Easy customization of models and system prompts
-- Support for AI Gateway integration
-- Clean, responsive UI that works on mobile and desktop
+---
 
-## Features
-
-- 💬 Simple and responsive chat interface
-- ⚡ Server-Sent Events (SSE) for streaming responses
-- 🧠 Powered by Cloudflare Workers AI LLMs
-- 🛠️ Built with TypeScript and Cloudflare Workers
-- 📱 Mobile-friendly design
-- 🔄 Maintains chat history on the client
-<!-- dash-content-end -->
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-
 - [Node.js](https://nodejs.org/) (v18 or newer)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
-- A Cloudflare account with Workers AI access
 
-### Installation
+### Run Locally
 
-1. Clone this repository:
-
+1. Clone or open the repository:
    ```bash
-   git clone https://github.com/cloudflare/templates.git
-   cd templates/llm-chat-app
+   git clone <repo-url>
+   cd llm-chat-app
    ```
 
 2. Install dependencies:
-
    ```bash
    npm install
    ```
 
-3. Generate Worker type definitions:
+3. Start the local development server:
    ```bash
-   npm run cf-typegen
+   npm run dev
+   ```
+   Or use any local static file server:
+   ```bash
+   npx serve public
    ```
 
-### Development
+4. Open `http://localhost:8787` (or `http://localhost:3000`) in your browser.
 
-Start a local development server:
+> **Note**: An application using Puter.js must be served by an HTTP server (not a `file://` URL) to run properly, as per Puter security requirements.
 
-```bash
-npm run dev
-```
+---
 
-This will start a local server at http://localhost:8787.
+## 📁 Project Structure
 
-Note: Using Workers AI accesses your Cloudflare account even during local development, which will incur usage charges.
-
-### Deployment
-
-Deploy to Cloudflare Workers:
-
-```bash
-npm run deploy
-```
-
-## Project Structure
-
-```
-/
-├── public/             # Static assets
-│   ├── index.html      # Chat UI HTML
-│   └── chat.js         # Chat UI frontend script
+```text
+├── public/
+│   ├── index.html       # Semantic HTML layout with Puter attribution
+│   ├── style.css        # Modern, responsive theme and component styles
+│   └── chat.js          # Puter.js SDK logic (streaming, KV, auth, models)
 ├── src/
-│   ├── index.ts        # Main Worker entry point
-│   └── types.ts        # TypeScript type definitions
-├── test/               # Test files
-├── wrangler.jsonc      # Cloudflare Worker configuration
-├── tsconfig.json       # TypeScript configuration
-└── README.md           # This documentation
+│   ├── index.ts         # Cloudflare Worker static asset server & API handler
+│   └── types.ts         # TypeScript type definitions
+├── .agents/
+│   └── hooks.json       # Security & tooling hooks
+├── wrangler.jsonc       # Cloudflare Worker configuration
+└── README.md
 ```
 
-## How It Works
+---
 
-### Backend
+## 🛠️ How Puter.js is Used
 
-The backend is built with Cloudflare Workers and uses the Workers AI platform to generate responses. The main components are:
+- **AI Chat Streaming**:
+  ```javascript
+  const response = await puter.ai.chat(messages, {
+    model: selectedModel,
+    stream: true,
+    signal: abortController.signal,
+    temperature: 0.7
+  });
 
-1. **API Endpoint** (`/api/chat`): Accepts POST requests with chat messages and streams responses
-2. **Streaming**: Uses Server-Sent Events (SSE) for real-time streaming of AI responses
-3. **Workers AI Binding**: Connects to Cloudflare's AI service via the Workers AI binding
+  for await (const part of response) {
+    if (part?.type === 'text') appendText(part.text);
+    if (part?.type === 'reasoning') updateReasoning(part.reasoning);
+  }
+  ```
 
-### Frontend
+- **Dynamic Model Catalog**:
+  ```javascript
+  const models = await puter.ai.listModels();
+  ```
 
-The frontend is a simple HTML/CSS/JavaScript application that:
+- **Puter Cloud KV Persistence**:
+  ```javascript
+  // Save chat sessions
+  await puter.kv.set('puter_llm_chat_sessions', JSON.stringify(sessions));
 
-1. Presents a chat interface
-2. Sends user messages to the API
-3. Processes streaming responses in real-time
-4. Maintains chat history on the client side
+  // Retrieve chat sessions
+  const saved = await puter.kv.get('puter_llm_chat_sessions');
+  ```
 
-## Customization
+- **Puter Auth**:
+  ```javascript
+  if (!puter.auth.isSignedIn()) {
+    await puter.auth.signIn();
+  }
+  const user = await puter.auth.getUser();
+  ```
 
-### Changing the Model
+---
 
-To use a different AI model, update the `MODEL_ID` constant in `src/index.ts`. You can find available models in the [Cloudflare Workers AI documentation](https://developers.cloudflare.com/workers-ai/models/).
-
-### Using AI Gateway
-
-The template includes commented code for AI Gateway integration, which provides additional capabilities like rate limiting, caching, and analytics.
-
-To enable AI Gateway:
-
-1. [Create an AI Gateway](https://dash.cloudflare.com/?to=/:account/ai/ai-gateway) in your Cloudflare dashboard
-2. Uncomment the gateway configuration in `src/index.ts`
-3. Replace `YOUR_GATEWAY_ID` with your actual AI Gateway ID
-4. Configure other gateway options as needed:
-   - `skipCache`: Set to `true` to bypass gateway caching
-   - `cacheTtl`: Set the cache time-to-live in seconds
-
-Learn more about [AI Gateway](https://developers.cloudflare.com/ai-gateway/).
-
-### Modifying the System Prompt
-
-The default system prompt can be changed by updating the `SYSTEM_PROMPT` constant in `src/index.ts`.
-
-### Styling
-
-The UI styling is contained in the `<style>` section of `public/index.html`. You can modify the CSS variables at the top to quickly change the color scheme.
-
-## Resources
-
-- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
-- [Cloudflare Workers AI Documentation](https://developers.cloudflare.com/workers-ai/)
-- [Workers AI Models](https://developers.cloudflare.com/workers-ai/models/)
+## 📄 License
+MIT

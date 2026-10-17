@@ -1,9 +1,9 @@
 {
-  "name": "llm-chat-app",
-  "description": "A simple AI chat application",
-  "version": "0.0.0",
+  "name": "nexus-ai",
+  "description": "Universal AI chat interface with 500+ models powered by Puter.js",
+  "version": "1.0.0",
   "cloudflare": {
-    "label": "LLM Chat App",
+    "label": "Nexus AI",
     "products": [
       "Workers",
       "Workers AI",

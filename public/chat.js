@@ -1,158 +1,1501 @@
 /**
- * LLM Chat App Frontend
- *
- * Handles the chat UI interactions and communication with the backend API.
+ * Nexus AI — Universal Multi-Model Chat
+ * Built with Puter.js (docs.puter.com/llms.txt)
  */
 
-// DOM elements
-const chatMessages = document.getElementById("chat-messages");
-const userInput = document.getElementById("user-input");
-const sendButton = document.getElementById("send-button");
-const typingIndicator = document.getElementById("typing-indicator");
+(function () {
+  'use strict';
 
-// Chat state
-let chatHistory = [
-  {
-    role: "assistant",
-    content:
-      "Hello! I'm an LLM chat app powered by vijevira. How can I help you today?",
-  },
-];
-let isProcessing = false;
+  // --- Constants & Presets ---
+  const DEFAULT_MODEL = 'gpt-4o-mini';
+  const STORAGE_KEY_SESSIONS = 'nexus_ai_chat_sessions';
+  const STORAGE_KEY_SETTINGS = 'nexus_ai_settings';
+  const STORAGE_KEY_THEME = 'nexus_ai_theme';
 
-// Auto-resize textarea as user types
-userInput.addEventListener("input", function () {
-  this.style.height = "auto";
-  this.style.height = this.scrollHeight + "px";
-});
+  const PERSONA_PRESETS = {
+    default: 'You are Nexus AI, a brilliant, friendly, and concise assistant. Format responses using clean markdown, bullet points, and code blocks where helpful.',
+    coder: 'You are a Principal Software Architect. Provide production-ready, clean, modern code with concise technical explanations. Minimize conversational fluff.',
+    researcher: 'You are an Academic AI Researcher. Provide rigorous, in-depth analytical responses with step-by-step reasoning and objective conclusions.',
+    concise: 'Provide ultra-concise, direct responses using short bullet points. Skip pleasantries and filler.',
+    creative: 'You are an imaginative creative writer and storyteller. Use vivid metaphors, evocative prose, and engaging narrative flow.',
+    custom: ''
+  };
 
-// Send message on Enter (without Shift)
-userInput.addEventListener("keydown", function (e) {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
-});
+  const CURATED_MODELS = [
+    // Google Gemini
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', isCurated: true, description: 'Google’s lightning-fast multimodal model' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', isCurated: true, description: 'Google’s flagship model for coding & reasoning' },
+    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', provider: 'Google', isCurated: true, description: 'Next-gen hybrid reasoning model from Google' },
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Google', isCurated: true, description: 'Cutting-edge Gemini preview model' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', provider: 'Google', isCurated: true, description: 'Advanced reasoning & tool use preview' },
+    
+    // OpenAI
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', isCurated: true, description: 'Fast, cost-effective multimodal model' },
+    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', isCurated: true, description: 'Flagship high-intelligence multimodal model' },
+    { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano', provider: 'OpenAI', isCurated: true, description: 'Puter default high-efficiency model' },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', isCurated: true, description: 'Next-generation lightweight powerhouse' },
+    
+    // Anthropic Claude
+    { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', provider: 'Anthropic', isCurated: true, description: 'Superior nuance, coding, and thought clarity' },
+    { id: 'claude-opus-5', name: 'Claude Opus 5', provider: 'Anthropic', isCurated: true, description: 'Deep analytical intelligence & complex synthesis' },
+    { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', provider: 'Anthropic', isCurated: true, description: 'Ultra-fast, responsive assistant' },
+    
+    // DeepSeek
+    { id: 'deepseek-chat', name: 'DeepSeek Chat (V3.1)', provider: 'DeepSeek', isCurated: true, description: 'State-of-the-art open chat model' },
+    { id: 'openrouter:deepseek/deepseek-r1', name: 'DeepSeek R1 (Reasoning)', provider: 'DeepSeek', isCurated: true, description: 'Open reasoning model with chain-of-thought' },
+    { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', provider: 'DeepSeek', isCurated: true, description: 'High-throughput reasoning model' },
+    
+    // xAI Grok
+    { id: 'grok-4.3', name: 'Grok 4.3', provider: 'xAI', isCurated: true, description: 'xAI advanced conversational intelligence' },
+    { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast Reasoning', provider: 'xAI', isCurated: true, description: 'Real-time reasoning from xAI' },
 
-// Send button click handler
-sendButton.addEventListener("click", sendMessage);
+    // Meta Llama
+    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', provider: 'Meta', isCurated: true, description: 'Top-tier open-source general knowledge model' },
 
-/**
- * Sends a message to the chat API and processes the response
- */
-async function sendMessage() {
-  const message = userInput.value.trim();
+    // Mistral
+    { id: 'mistral-large-2512', name: 'Mistral Large 3', provider: 'Mistral', isCurated: true, description: 'European multilingual frontier model' }
+  ];
 
-  // Don't send empty messages
-  if (message === "" || isProcessing) return;
+  // --- State ---
+  let allModels = [...CURATED_MODELS];
+  let activeProviderFilter = 'all';
+  let sessions = [];
+  let currentSessionId = null;
+  let activeAbortController = null;
+  let currentAttachment = null; // { name, dataUrl, type }
 
-  // Disable input while processing
-  isProcessing = true;
-  userInput.disabled = true;
-  sendButton.disabled = true;
+  let settings = {
+    personaPreset: 'default',
+    systemPrompt: PERSONA_PRESETS.default,
+    temperature: 0.7,
+    selectedModel: DEFAULT_MODEL,
+    storageMode: 'cloud'
+  };
 
-  // Add user message to chat
-  addMessageToChat("user", message);
+  // --- DOM Elements ---
+  const sidebar = document.getElementById('sidebar');
+  const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
+  const btnSidebarCollapse = document.getElementById('btn-sidebar-collapse');
+  const btnCloseSidebar = document.getElementById('btn-close-sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const btnNewChat = document.getElementById('btn-new-chat');
+  const chatHistoryList = document.getElementById('chat-history-list');
 
-  // Clear input
-  userInput.value = "";
-  userInput.style.height = "auto";
+  const userProfileBar = document.getElementById('user-profile-bar');
+  const userAvatar = document.getElementById('user-avatar');
+  const userStatusDot = document.getElementById('user-status-dot');
+  const userName = document.getElementById('user-name');
+  const userTier = document.getElementById('user-tier');
 
-  // Show typing indicator
-  typingIndicator.classList.add("visible");
+  const topbarChatTitle = document.getElementById('topbar-chat-title');
+  const btnThemeToggle = document.getElementById('btn-theme-toggle');
+  const themeIconSun = document.getElementById('theme-icon-sun');
+  const themeIconMoon = document.getElementById('theme-icon-moon');
 
-  // Add message to history
-  chatHistory.push({ role: "user", content: message });
+  const btnModelPicker = document.getElementById('btn-model-picker');
+  const selectedModelName = document.getElementById('selected-model-name');
+  const selectedModelProvider = document.getElementById('selected-model-provider');
+  const modelModal = document.getElementById('model-modal');
+  const btnCloseModelModal = document.getElementById('btn-close-model-modal');
+  const btnCancelModelModal = document.getElementById('btn-cancel-model-modal');
+  const modelSearchInput = document.getElementById('model-search-input');
+  const modelsListContainer = document.getElementById('models-list-container');
+  const providerPillsBar = document.getElementById('provider-pills-bar');
 
-  try {
-    // Create new assistant response element
-    const assistantMessageEl = document.createElement("div");
-    assistantMessageEl.className = "message assistant-message";
-    assistantMessageEl.innerHTML = "<p></p>";
-    chatMessages.appendChild(assistantMessageEl);
+  const messagesContainer = document.getElementById('messages-container');
+  const messagesInner = document.getElementById('messages-inner');
+  const welcomeContainer = document.getElementById('welcome-container');
+  const btnScrollBottom = document.getElementById('btn-scroll-bottom');
 
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+  const inputBoxContainer = document.getElementById('input-box-container');
+  const dropZoneOverlay = document.getElementById('drop-zone-overlay');
+  const chatTextarea = document.getElementById('chat-textarea');
+  const btnSend = document.getElementById('btn-send');
+  const btnStopStream = document.getElementById('btn-stop-stream');
+  const btnAttach = document.getElementById('btn-attach');
+  const fileInput = document.getElementById('file-input');
+  const attachmentPreviewBar = document.getElementById('attachment-preview-bar');
+  const attachmentImgPreview = document.getElementById('attachment-img-preview');
+  const attachmentFilename = document.getElementById('attachment-filename');
+  const btnRemoveAttachment = document.getElementById('btn-remove-attachment');
 
-    // Send request to API
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messages: chatHistory,
-      }),
+  const settingsModal = document.getElementById('settings-modal');
+  const btnCloseSettingsModal = document.getElementById('btn-close-settings-modal');
+  const btnCancelSettings = document.getElementById('btn-cancel-settings');
+  const btnSaveSettings = document.getElementById('btn-save-settings');
+
+  // Settings Tabs & Content
+  const modalTabBtns = document.querySelectorAll('.modal-tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  const modalAccountAvatar = document.getElementById('modal-account-avatar');
+  const modalAccountName = document.getElementById('modal-account-name');
+  const modalAccountStatus = document.getElementById('modal-account-status');
+  const btnModalAuth = document.getElementById('btn-modal-auth');
+  const statSyncStatus = document.getElementById('stat-sync-status');
+  const statChatCount = document.getElementById('stat-chat-count');
+  const settingStorageMode = document.getElementById('setting-storage-mode');
+
+  const settingPersonaPreset = document.getElementById('setting-persona-preset');
+  const settingSystemPrompt = document.getElementById('setting-system-prompt');
+  const settingTemperature = document.getElementById('setting-temperature');
+  const tempValDisplay = document.getElementById('temp-val-display');
+
+  const btnExportChats = document.getElementById('btn-export-chats');
+  const btnImportChats = document.getElementById('btn-import-chats');
+  const importFileInput = document.getElementById('import-file-input');
+  const btnModalClearChats = document.getElementById('btn-modal-clear-chats');
+  const toastContainer = document.getElementById('toast-container');
+
+  // --- Initialize Marked & Highlighting ---
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+      highlight: function (code, lang) {
+        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+          try {
+            return hljs.highlight(code, { language: lang }).value;
+          } catch (e) {
+            console.error('Highlight error:', e);
+          }
+        }
+        return code;
+      }
     });
+  }
 
-    // Handle errors
-    if (!response.ok) {
-      throw new Error("Failed to get response");
+  // --- Helper: Toast Notifications ---
+  function showToast(message, duration = 3000) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 250);
+    }, duration);
+  }
+
+  // --- Theme Management ---
+  function initTheme() {
+    const savedTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'dark';
+    setTheme(savedTheme);
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(STORAGE_KEY_THEME, theme);
+    if (theme === 'dark') {
+      themeIconSun.style.display = 'block';
+      themeIconMoon.style.display = 'none';
+    } else {
+      themeIconSun.style.display = 'none';
+      themeIconMoon.style.display = 'block';
+    }
+  }
+
+  btnThemeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
+  // --- Settings & Modal Tabs ---
+  function initModalTabs() {
+    modalTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetTab = btn.getAttribute('data-tab');
+        modalTabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+
+        btn.classList.add('active');
+        const content = document.getElementById(targetTab);
+        if (content) content.classList.add('active');
+      });
+    });
+  }
+
+  function loadLocalSettings() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
+      if (saved) {
+        settings = { ...settings, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.warn('Failed to load settings:', e);
+    }
+    updateModelButtonUI();
+  }
+
+  function populateSettingsModal() {
+    settingPersonaPreset.value = settings.personaPreset || 'default';
+    settingSystemPrompt.value = settings.systemPrompt || PERSONA_PRESETS.default;
+    settingTemperature.value = settings.temperature;
+    tempValDisplay.textContent = settings.temperature;
+    settingStorageMode.value = settings.storageMode || 'cloud';
+    statChatCount.textContent = sessions.length;
+    updateAuthUI();
+  }
+
+  function saveSettings() {
+    settings.personaPreset = settingPersonaPreset.value;
+    settings.systemPrompt = settingSystemPrompt.value.trim() || PERSONA_PRESETS.default;
+    settings.temperature = parseFloat(settingTemperature.value) || 0.7;
+    settings.storageMode = settingStorageMode.value;
+
+    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+    showToast('Settings saved successfully');
+    closeModal(settingsModal);
+  }
+
+  settingPersonaPreset.addEventListener('change', (e) => {
+    const preset = e.target.value;
+    if (preset !== 'custom' && PERSONA_PRESETS[preset] !== undefined) {
+      settingSystemPrompt.value = PERSONA_PRESETS[preset];
+    }
+  });
+
+  settingSystemPrompt.addEventListener('input', () => {
+    settingPersonaPreset.value = 'custom';
+  });
+
+  settingTemperature.addEventListener('input', (e) => {
+    tempValDisplay.textContent = e.target.value;
+  });
+
+  userProfileBar.addEventListener('click', () => {
+    populateSettingsModal();
+    // Switch directly to profile tab
+    modalTabBtns.forEach(b => b.classList.remove('active'));
+    tabContents.forEach(c => c.classList.remove('active'));
+    document.querySelector('[data-tab="tab-profile"]').classList.add('active');
+    document.getElementById('tab-profile').classList.add('active');
+    openModal(settingsModal);
+  });
+
+  btnSaveSettings.addEventListener('click', saveSettings);
+  btnCancelSettings.addEventListener('click', () => closeModal(settingsModal));
+  btnCloseSettingsModal.addEventListener('click', () => closeModal(settingsModal));
+
+  // --- Puter Authentication & Cloud KV Storage ---
+  async function initPuter() {
+    if (typeof puter === 'undefined') {
+      console.warn('Puter.js SDK not yet loaded.');
+      return;
     }
 
-    // Process streaming response
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let responseText = "";
+    try {
+      updateAuthUI();
+      fetchPuterModels();
+      await loadSessions();
+    } catch (err) {
+      console.error('Puter init error:', err);
+      loadSessionsFromLocal();
+    }
+  }
 
-    while (true) {
-      const { done, value } = await reader.read();
+  async function updateAuthUI() {
+    const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
 
-      if (done) {
-        break;
+    if (isSignedIn) {
+      try {
+        const user = await puter.auth.getUser();
+        const displayName = user.username || user.name || 'Puter User';
+        userName.textContent = displayName;
+        userTier.textContent = 'Puter Cloud Synced';
+        userAvatar.textContent = displayName.charAt(0).toUpperCase();
+        userStatusDot.className = 'user-status-dot';
+
+        modalAccountName.textContent = displayName;
+        modalAccountStatus.textContent = 'Connected via Puter Account';
+        modalAccountAvatar.textContent = displayName.charAt(0).toUpperCase();
+        btnModalAuth.textContent = 'Sign Out';
+        btnModalAuth.className = 'btn-secondary';
+        statSyncStatus.textContent = 'Synced (Puter KV)';
+        statSyncStatus.style.color = 'var(--success-color)';
+      } catch (e) {
+        console.warn('Failed to get user:', e);
       }
+    } else {
+      userName.textContent = 'Guest User';
+      userTier.textContent = 'Click to connect Puter';
+      userAvatar.textContent = '?';
+      userStatusDot.className = 'user-status-dot offline';
 
-      // Decode chunk
-      const chunk = decoder.decode(value, { stream: true });
+      modalAccountName.textContent = 'Guest User';
+      modalAccountStatus.textContent = 'Saved in browser local storage';
+      modalAccountAvatar.textContent = '?';
+      btnModalAuth.textContent = 'Sign In with Puter';
+      btnModalAuth.className = 'btn-primary';
+      statSyncStatus.textContent = 'Local Storage Only';
+      statSyncStatus.style.color = 'var(--text-muted)';
+    }
 
-      // Process SSE format
-      const lines = chunk.split("\n");
-      for (const line of lines) {
-        try {
-          const jsonData = JSON.parse(line);
-          if (jsonData.response) {
-            // Append new content to existing text
-            responseText += jsonData.response;
-            assistantMessageEl.querySelector("p").textContent = responseText;
+    const welcomeUsername = document.getElementById('welcome-username');
+    if (welcomeUsername) {
+      welcomeUsername.textContent = isSignedIn ? (userName.textContent || 'human') : 'human';
+    }
 
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+    statChatCount.textContent = sessions.length;
+  }
+
+  btnModalAuth.addEventListener('click', async () => {
+    if (typeof puter === 'undefined') {
+      showToast('Puter.js SDK not ready');
+      return;
+    }
+
+    if (puter.auth.isSignedIn()) {
+      await puter.auth.signOut();
+      updateAuthUI();
+      showToast('Signed out from Puter');
+      loadSessionsFromLocal();
+    } else {
+      try {
+        await puter.auth.signIn();
+        if (puter.auth.isSignedIn()) {
+          const user = await puter.auth.getUser();
+          updateAuthUI();
+          showToast(`Welcome back, ${user.username || 'friend'}!`);
+          await syncSessionsToPuterKV();
+          await loadSessions();
+        }
+      } catch (err) {
+        console.error('Sign-in failed:', err);
+        showToast('Sign-in canceled or failed');
+      }
+    }
+  });
+
+  // --- Puter Models Catalog (`puter.ai.listModels()`) ---
+  function normalizeModel(m) {
+    const id = typeof m === 'string' ? m : m.id;
+    const rawProvider = (typeof m === 'object' && m.provider ? m.provider : '').toLowerCase();
+    const rawName = (typeof m === 'object' && m.name ? m.name : id);
+    const idLower = (id || '').toLowerCase();
+    const nameLower = (rawName || '').toLowerCase();
+
+    // Determine Logical Canonical Family
+    let canonicalFamily = 'Other';
+    if (
+      rawProvider === 'gemini' ||
+      rawProvider === 'google' ||
+      idLower.includes('gemini') ||
+      idLower.includes('google/') ||
+      idLower.includes('gemma') ||
+      nameLower.includes('gemini') ||
+      nameLower.includes('google:')
+    ) {
+      canonicalFamily = 'Google';
+    } else if (
+      rawProvider.includes('openai') ||
+      rawProvider === 'azure-openai' ||
+      idLower.includes('openai/') ||
+      idLower.startsWith('gpt') ||
+      idLower.startsWith('o1') ||
+      idLower.startsWith('o3') ||
+      idLower.startsWith('o4') ||
+      nameLower.includes('openai') ||
+      nameLower.startsWith('gpt-')
+    ) {
+      canonicalFamily = 'OpenAI';
+    } else if (
+      rawProvider === 'claude' ||
+      rawProvider.includes('anthropic') ||
+      idLower.includes('claude') ||
+      idLower.includes('anthropic/') ||
+      nameLower.includes('claude') ||
+      nameLower.includes('anthropic')
+    ) {
+      canonicalFamily = 'Anthropic';
+    } else if (
+      rawProvider.includes('deepseek') ||
+      idLower.includes('deepseek') ||
+      nameLower.includes('deepseek')
+    ) {
+      canonicalFamily = 'DeepSeek';
+    } else if (
+      rawProvider.includes('meta') ||
+      idLower.includes('llama') ||
+      idLower.includes('meta-llama') ||
+      nameLower.includes('llama')
+    ) {
+      canonicalFamily = 'Meta';
+    } else if (
+      rawProvider.includes('mistral') ||
+      idLower.includes('mistral') ||
+      idLower.includes('codestral') ||
+      nameLower.includes('mistral')
+    ) {
+      canonicalFamily = 'Mistral';
+    } else if (
+      rawProvider.includes('xai') ||
+      rawProvider.includes('x-ai') ||
+      idLower.includes('grok') ||
+      nameLower.includes('grok')
+    ) {
+      canonicalFamily = 'xAI';
+    } else if (
+      rawProvider.includes('alibaba') ||
+      idLower.includes('qwen') ||
+      nameLower.includes('qwen')
+    ) {
+      canonicalFamily = 'Alibaba';
+    } else {
+      canonicalFamily = rawProvider ? rawProvider.charAt(0).toUpperCase() + rawProvider.slice(1) : 'Other';
+    }
+
+    // Clean human-friendly name
+    let cleanName = rawName
+      .replace(/\s*\((OpenRouter|Infron|batch)\)/gi, '')
+      .replace(/^(Google|Anthropic|OpenAI|Meta|Mistral|xAI):\s*/i, '')
+      .trim();
+
+    const isReasoning = idLower.includes('reason') || idLower.includes('r1') || idLower.includes('thinking') || idLower.startsWith('o1') || idLower.startsWith('o3');
+
+    // Context format
+    let contextStr = '';
+    if (m && typeof m.context === 'number') {
+      if (m.context >= 1000000) contextStr = `${Math.round(m.context / 1000000)}M ctx`;
+      else if (m.context >= 1000) contextStr = `${Math.round(m.context / 1000)}K ctx`;
+    }
+
+    return {
+      id,
+      name: cleanName || id,
+      rawName,
+      canonicalFamily,
+      rawProvider: m.provider || '',
+      isCurated: !!m.isCurated,
+      isReasoning,
+      contextStr,
+      description: m.description || ''
+    };
+  }
+
+  async function fetchPuterModels() {
+    if (typeof puter === 'undefined' || !puter.ai || !puter.ai.listModels) return;
+
+    try {
+      const models = await puter.ai.listModels();
+      if (Array.isArray(models) && models.length > 0) {
+        // Filter out non-interactive models (batch-only, audio-only, embeddings)
+        const chatModels = models.filter(m => {
+          const id = typeof m === 'string' ? m : m.id;
+          if (!id) return false;
+          if (id.endsWith(':batch')) return false; // Batch processing models cannot do real-time chat
+          if (m.modalities && m.modalities.input && !m.modalities.input.includes('text')) return false;
+          if (id.includes('whisper') || id.includes('lyria') || id.includes('embedding') || id.includes('fun-asr')) return false;
+          return true;
+        });
+
+        const normalized = chatModels.map(m => normalizeModel(m));
+        
+        // Deduplicate by ID
+        const seen = new Set();
+        const list = [];
+        for (const item of normalized) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            list.push(item);
           }
-        } catch (e) {
-          console.error("Error parsing JSON:", e);
+        }
+
+        // Flag curated models and ensure they're at top
+        const curatedList = [];
+        CURATED_MODELS.forEach(cm => {
+          const match = list.find(m => m.id === cm.id || (m.aliases && m.aliases.includes(cm.id)));
+          if (match) {
+            match.isCurated = true;
+            if (cm.description && !match.description) match.description = cm.description;
+            if (!curatedList.some(c => c.id === match.id)) {
+              curatedList.push(match);
+            }
+          }
+        });
+
+        // Combine curated with the rest
+        const remaining = list.filter(m => !curatedList.some(c => c.id === m.id));
+        allModels = [...curatedList, ...remaining];
+      }
+    } catch (e) {
+      console.warn('puter.ai.listModels fallback to curated:', e);
+      allModels = CURATED_MODELS.map(m => normalizeModel(m));
+    }
+  }
+
+  function renderModelsList() {
+    modelsListContainer.innerHTML = '';
+    const q = (modelSearchInput.value || '').toLowerCase().trim();
+
+    const filtered = allModels.filter(m => {
+      // Canonical Provider filter
+      if (activeProviderFilter !== 'all') {
+        const fam = (m.canonicalFamily || '').toLowerCase();
+        const idLower = (m.id || '').toLowerCase();
+        const rawProv = (m.rawProvider || '').toLowerCase();
+
+        if (activeProviderFilter === 'google') {
+          if (fam !== 'google' && !idLower.includes('gemini') && !idLower.includes('google') && !rawProv.includes('gemini')) return false;
+        } else if (activeProviderFilter === 'openai') {
+          if (fam !== 'openai' && !idLower.includes('gpt') && !idLower.includes('openai') && !rawProv.includes('openai')) return false;
+        } else if (activeProviderFilter === 'anthropic') {
+          if (fam !== 'anthropic' && !idLower.includes('claude') && !idLower.includes('anthropic') && !rawProv.includes('claude')) return false;
+        } else if (activeProviderFilter === 'deepseek') {
+          if (fam !== 'deepseek' && !idLower.includes('deepseek') && !rawProv.includes('deepseek')) return false;
+        } else if (activeProviderFilter === 'xai') {
+          if (fam !== 'xai' && !idLower.includes('grok') && !idLower.includes('xai') && !rawProv.includes('xai')) return false;
+        } else if (activeProviderFilter === 'meta') {
+          if (fam !== 'meta' && !idLower.includes('llama') && !idLower.includes('meta')) return false;
+        } else if (activeProviderFilter === 'mistral') {
+          if (fam !== 'mistral' && !idLower.includes('mistral') && !idLower.includes('codestral')) return false;
+        } else if (fam !== activeProviderFilter && !idLower.includes(activeProviderFilter)) {
+          return false;
         }
       }
+
+      // Search query filter
+      if (q) {
+        return (m.id && m.id.toLowerCase().includes(q)) ||
+          (m.name && m.name.toLowerCase().includes(q)) ||
+          (m.canonicalFamily && m.canonicalFamily.toLowerCase().includes(q)) ||
+          (m.rawProvider && m.rawProvider.toLowerCase().includes(q));
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      modelsListContainer.innerHTML = '<div style="padding: 2rem 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.88rem;">No matching models found. Try a different search keyword or provider filter.</div>';
+      return;
     }
 
-    // Add completed response to chat history
-    chatHistory.push({ role: "assistant", content: responseText });
-  } catch (error) {
-    console.error("Error:", error);
-    addMessageToChat(
-      "assistant",
-      "Sorry, there was an error processing your request.",
-    );
-  } finally {
-    // Hide typing indicator
-    typingIndicator.classList.remove("visible");
+    // Group models by Canonical Family
+    const groups = {};
+    filtered.forEach(m => {
+      const fam = m.canonicalFamily || 'Other';
+      if (!groups[fam]) groups[fam] = [];
+      groups[fam].push(m);
+    });
 
-    // Re-enable input
-    isProcessing = false;
-    userInput.disabled = false;
-    sendButton.disabled = false;
-    userInput.focus();
+    // Provider priority sorting
+    const familyOrder = ['Google', 'OpenAI', 'Anthropic', 'DeepSeek', 'xAI', 'Meta', 'Mistral', 'Alibaba'];
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      const idxA = familyOrder.indexOf(a);
+      const idxB = familyOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    sortedKeys.forEach(familyKey => {
+      const header = document.createElement('div');
+      header.className = 'model-group-header';
+      header.textContent = `${familyKey} (${groups[familyKey].length})`;
+      modelsListContainer.appendChild(header);
+
+      groups[familyKey].forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'model-option-item' + (m.id === settings.selectedModel ? ' selected' : '');
+        item.innerHTML = `
+          <div class="model-option-info">
+            <div class="model-option-name">${escapeHtml(m.name)}</div>
+            <div class="model-option-id">${escapeHtml(m.id)}</div>
+          </div>
+          <div class="model-badges-row">
+            ${m.isCurated ? '<span class="badge-featured">Featured</span>' : ''}
+            ${m.isReasoning ? '<span class="badge-reasoning">Reasoning</span>' : ''}
+            ${m.contextStr ? `<span class="badge-context">${escapeHtml(m.contextStr)}</span>` : ''}
+            <span class="model-provider-badge">${escapeHtml(m.canonicalFamily || m.rawProvider || 'AI')}</span>
+          </div>
+        `;
+        item.addEventListener('click', () => {
+          selectModel(m.id, m.name, m.canonicalFamily || m.rawProvider);
+          closeModal(modelModal);
+        });
+        modelsListContainer.appendChild(item);
+      });
+    });
   }
-}
 
-/**
- * Helper function to add message to chat
- */
-function addMessageToChat(role, content) {
-  const messageEl = document.createElement("div");
-  messageEl.className = `message ${role}-message`;
-  messageEl.innerHTML = `<p>${content}</p>`;
-  chatMessages.appendChild(messageEl);
+  function selectModel(id, name, provider) {
+    settings.selectedModel = id;
+    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+    updateModelButtonUI(name, provider);
+    showToast(`Active model: ${name || id}`);
+  }
 
-  // Scroll to bottom
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+  function updateModelButtonUI(name, provider) {
+    const found = allModels.find(m => m.id === settings.selectedModel) || { name: settings.selectedModel, canonicalFamily: 'AI' };
+    selectedModelName.textContent = name || found.name || settings.selectedModel;
+    selectedModelProvider.textContent = provider || found.canonicalFamily || found.rawProvider || 'AI';
+  }
+
+  btnModelPicker.addEventListener('click', () => {
+    modelSearchInput.value = '';
+    activeProviderFilter = 'all';
+    providerPillsBar.querySelectorAll('.provider-pill').forEach(p => {
+      p.classList.toggle('active', p.getAttribute('data-provider') === 'all');
+    });
+    renderModelsList();
+    openModal(modelModal);
+    setTimeout(() => modelSearchInput.focus(), 60);
+  });
+
+  providerPillsBar.addEventListener('click', (e) => {
+    const pill = e.target.closest('.provider-pill');
+    if (!pill) return;
+    providerPillsBar.querySelectorAll('.provider-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    activeProviderFilter = pill.getAttribute('data-provider');
+    renderModelsList();
+  });
+
+  modelSearchInput.addEventListener('input', renderModelsList);
+  btnCloseModelModal.addEventListener('click', () => closeModal(modelModal));
+  btnCancelModelModal.addEventListener('click', () => closeModal(modelModal));
+
+  // --- Session & History Management ---
+  async function loadSessions() {
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+      try {
+        const cloudData = await puter.kv.get(STORAGE_KEY_SESSIONS);
+        if (cloudData) {
+          sessions = typeof cloudData === 'string' ? JSON.parse(cloudData) : cloudData;
+          renderSessionList();
+          restoreActiveSession();
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to load from Puter KV:', err);
+      }
+    }
+    loadSessionsFromLocal();
+  }
+
+  function loadSessionsFromLocal() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      sessions = local ? JSON.parse(local) : [];
+    } catch (e) {
+      sessions = [];
+    }
+    renderSessionList();
+    restoreActiveSession();
+  }
+
+  async function persistSessions() {
+    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+      try {
+        await puter.kv.set(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+      } catch (e) {
+        console.warn('Failed to persist to Puter KV:', e);
+      }
+    }
+    statChatCount.textContent = sessions.length;
+  }
+
+  async function syncSessionsToPuterKV() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      if (local && typeof puter !== 'undefined' && puter.kv) {
+        await puter.kv.set(STORAGE_KEY_SESSIONS, local);
+      }
+    } catch (e) {
+      console.warn('Sync to KV error:', e);
+    }
+  }
+
+  function createNewSession() {
+    const newSession = {
+      id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+      title: 'New Conversation',
+      createdAt: Date.now(),
+      model: settings.selectedModel,
+      messages: []
+    };
+    sessions.unshift(newSession);
+    currentSessionId = newSession.id;
+    persistSessions();
+    renderSessionList();
+    renderActiveSession();
+    chatTextarea.focus();
+  }
+
+  function restoreActiveSession() {
+    if (sessions.length > 0) {
+      currentSessionId = sessions[0].id;
+    } else {
+      createNewSession();
+      return;
+    }
+    renderActiveSession();
+  }
+
+  function switchSession(id) {
+    if (activeAbortController) {
+      activeAbortController.abort();
+      activeAbortController = null;
+    }
+    currentSessionId = id;
+    renderSessionList();
+    renderActiveSession();
+  }
+
+  function deleteSession(id, e) {
+    if (e) e.stopPropagation();
+    sessions = sessions.filter(s => s.id !== id);
+    if (currentSessionId === id) {
+      currentSessionId = sessions.length > 0 ? sessions[0].id : null;
+    }
+    persistSessions();
+    renderSessionList();
+    if (!currentSessionId) {
+      createNewSession();
+    } else {
+      renderActiveSession();
+    }
+    showToast('Conversation deleted');
+  }
+
+  let clearConfirmState = false;
+  let clearConfirmTimer = null;
+
+  function clearAllChats() {
+    if (!clearConfirmState) {
+      clearConfirmState = true;
+      btnModalClearChats.textContent = '⚠️ Click again to confirm';
+      btnModalClearChats.style.backgroundColor = 'var(--danger-color)';
+      btnModalClearChats.style.color = '#ffffff';
+      clearConfirmTimer = setTimeout(() => {
+        clearConfirmState = false;
+        btnModalClearChats.textContent = '🗑️ Clear All Conversations';
+        btnModalClearChats.style.backgroundColor = '';
+        btnModalClearChats.style.color = '';
+      }, 4000);
+      return;
+    }
+
+    if (clearConfirmTimer) clearTimeout(clearConfirmTimer);
+    clearConfirmState = false;
+    btnModalClearChats.textContent = '🗑️ Clear All Conversations';
+    btnModalClearChats.style.backgroundColor = '';
+    btnModalClearChats.style.color = '';
+
+    sessions = [];
+    currentSessionId = null;
+    persistSessions();
+    createNewSession();
+    closeModal(settingsModal);
+    showToast('All conversations cleared');
+  }
+
+  btnModalClearChats.addEventListener('click', clearAllChats);
+
+  // Export / Import Chats
+  btnExportChats.addEventListener('click', () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessions, null, 2));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute('href', dataStr);
+    dlAnchor.setAttribute('download', `nexus_ai_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
+    showToast('Chat history exported successfully');
+  });
+
+  btnImportChats.addEventListener('click', () => importFileInput.click());
+
+  importFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (Array.isArray(imported)) {
+          sessions = imported;
+          currentSessionId = sessions.length > 0 ? sessions[0].id : null;
+          await persistSessions();
+          renderSessionList();
+          renderActiveSession();
+          showToast(`Imported ${sessions.length} conversations!`);
+          closeModal(settingsModal);
+        } else {
+          showToast('Invalid backup file format');
+        }
+      } catch (err) {
+        showToast('Failed to parse backup JSON file');
+      }
+    };
+    reader.readAsText(file);
+    importFileInput.value = '';
+  });
+
+  function renderSessionList() {
+    chatHistoryList.innerHTML = '<div class="chat-history-title">Recent Conversations</div>';
+
+    if (sessions.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding: 0.75rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);';
+      empty.textContent = 'No past conversations';
+      chatHistoryList.appendChild(empty);
+      return;
+    }
+
+    sessions.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (s.id === currentSessionId ? ' active' : '');
+      item.innerHTML = `
+        <span class="chat-item-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
+        <div class="chat-item-actions">
+          <button class="icon-btn-sm btn-delete-chat" title="Delete conversation">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      `;
+
+      item.addEventListener('click', () => switchSession(s.id));
+      const btnDel = item.querySelector('.btn-delete-chat');
+      btnDel.addEventListener('click', (e) => deleteSession(s.id, e));
+
+      chatHistoryList.appendChild(item);
+    });
+  }
+
+  btnNewChat.addEventListener('click', createNewSession);
+
+  // --- Message Rendering in Main Viewport ---
+  function getActiveSession() {
+    return sessions.find(s => s.id === currentSessionId);
+  }
+
+  function renderActiveSession() {
+    const session = getActiveSession();
+    messagesInner.innerHTML = '';
+
+    if (topbarChatTitle) {
+      topbarChatTitle.textContent = session ? (session.title || 'New Conversation') : 'New Conversation';
+    }
+
+    if (!session || session.messages.length === 0) {
+      messagesInner.appendChild(welcomeContainer);
+      welcomeContainer.style.display = 'flex';
+      setupStarterCards();
+      return;
+    }
+
+    welcomeContainer.style.display = 'none';
+
+    session.messages.forEach((msg, idx) => {
+      const wrapper = createMessageDOM(msg, idx);
+      messagesInner.appendChild(wrapper);
+    });
+
+    scrollToBottom();
+  }
+
+  function createMessageDOM(msg, msgIndex) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `message-wrapper ${msg.role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = `message-avatar ${msg.role}`;
+    if (msg.role === 'assistant') {
+      avatar.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24">
+          <path fill="url(#geminiSparkleGrad)" d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+        </svg>
+      `;
+    } else {
+      avatar.textContent = 'U';
+    }
+
+    const container = document.createElement('div');
+    container.className = 'message-content-container';
+
+    // Optional image attachment rendering
+    if (msg.attachment) {
+      const img = document.createElement('img');
+      img.src = msg.attachment;
+      img.alt = 'Attached image';
+      img.className = 'message-attachment';
+      container.appendChild(img);
+    }
+
+    // Optional reasoning block
+    if (msg.reasoning) {
+      const reasoningBlock = document.createElement('div');
+      reasoningBlock.className = 'reasoning-block collapsed';
+      reasoningBlock.innerHTML = `
+        <div class="reasoning-header">
+          <span>🧠 Thought Process</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="reasoning-content">${escapeHtml(msg.reasoning)}</div>
+      `;
+      reasoningBlock.querySelector('.reasoning-header').addEventListener('click', () => {
+        reasoningBlock.classList.toggle('collapsed');
+      });
+      container.appendChild(reasoningBlock);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble ${msg.role}`;
+
+    if (msg.role === 'user') {
+      bubble.textContent = msg.content;
+    } else {
+      bubble.className += ' markdown-body';
+      bubble.innerHTML = formatMarkdown(msg.content);
+      attachCodeCopyHandlers(bubble);
+    }
+
+    container.appendChild(bubble);
+
+    // Meta & Action Bar for Assistant Messages
+    if (msg.role === 'assistant') {
+      const actions = document.createElement('div');
+      actions.className = 'message-actions';
+      actions.innerHTML = `
+        <span class="message-meta-tag">${escapeHtml(msg.model || settings.selectedModel)}</span>
+        <button class="icon-btn-sm btn-copy-msg" title="Copy response">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="icon-btn-sm btn-regen-msg" title="Regenerate from here">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+      `;
+
+      actions.querySelector('.btn-copy-msg').addEventListener('click', () => {
+        navigator.clipboard.writeText(msg.content);
+        showToast('Copied to clipboard');
+      });
+
+      actions.querySelector('.btn-regen-msg').addEventListener('click', () => {
+        regenerateFromIndex(msgIndex);
+      });
+
+      container.appendChild(actions);
+    }
+
+    wrapper.appendChild(avatar);
+    wrapper.appendChild(container);
+    return wrapper;
+  }
+
+  function formatMarkdown(content) {
+    if (!content) return '';
+    if (typeof marked !== 'undefined') {
+      try {
+        return marked.parse(content);
+      } catch (e) {
+        console.error('Marked parsing error:', e);
+      }
+    }
+    return escapeHtml(content).replace(/\n/g, '<br>');
+  }
+
+  function attachCodeCopyHandlers(parentElement) {
+    const codeBlocks = parentElement.querySelectorAll('pre');
+    codeBlocks.forEach(pre => {
+      if (pre.parentElement.classList.contains('code-block-wrapper')) return;
+
+      const codeEl = pre.querySelector('code');
+      const langClass = Array.from(codeEl?.classList || []).find(c => c.startsWith('language-'));
+      const lang = langClass ? langClass.replace('language-', '') : 'code';
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'code-block-wrapper';
+
+      const header = document.createElement('div');
+      header.className = 'code-header';
+      header.innerHTML = `
+        <span>${escapeHtml(lang)}</span>
+        <button class="btn-copy-code">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+      `;
+
+      header.querySelector('.btn-copy-code').addEventListener('click', function () {
+        const codeText = codeEl ? codeEl.innerText : pre.innerText;
+        navigator.clipboard.writeText(codeText);
+        this.innerHTML = '✓ Copied!';
+        setTimeout(() => {
+          this.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          `;
+        }, 2000);
+      });
+
+      pre.parentNode.insertBefore(wrapper, pre);
+      wrapper.appendChild(header);
+      wrapper.appendChild(pre);
+    });
+  }
+
+  function setupStarterCards() {
+    const cards = welcomeContainer.querySelectorAll('.starter-card');
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        const prompt = card.getAttribute('data-prompt');
+        if (prompt) {
+          chatTextarea.value = prompt;
+          handleSend();
+        }
+      });
+    });
+  }
+
+  // --- Regenerate from Assistant message index ---
+  function regenerateFromIndex(msgIndex) {
+    const session = getActiveSession();
+    if (!session || activeAbortController) return;
+
+    // Truncate to before this message
+    session.messages = session.messages.slice(0, msgIndex);
+    renderActiveSession();
+    triggerAssistantResponse(session);
+  }
+
+  // --- Send Message & Puter AI Streaming ---
+  async function handleSend() {
+    const text = chatTextarea.value.trim();
+    if (!text && !currentAttachment) return;
+    if (activeAbortController) return;
+
+    let session = getActiveSession();
+    if (!session) {
+      createNewSession();
+      session = getActiveSession();
+    }
+
+    if (session.messages.length === 0) {
+      session.title = text.slice(0, 36) || 'Image Chat';
+      if (topbarChatTitle) topbarChatTitle.textContent = session.title;
+      renderSessionList();
+    }
+
+    welcomeContainer.style.display = 'none';
+
+    // Add user message
+    const userMsg = {
+      role: 'user',
+      content: text,
+      attachment: currentAttachment ? currentAttachment.dataUrl : null,
+      timestamp: Date.now()
+    };
+    session.messages.push(userMsg);
+
+    clearAttachment();
+    chatTextarea.value = '';
+    chatTextarea.style.height = 'auto';
+    btnSend.disabled = true;
+
+    const userEl = createMessageDOM(userMsg, session.messages.length - 1);
+    messagesInner.appendChild(userEl);
+    scrollToBottom();
+
+    await triggerAssistantResponse(session);
+  }
+
+  async function triggerAssistantResponse(session) {
+    const assistantMsg = {
+      role: 'assistant',
+      content: '',
+      reasoning: '',
+      model: settings.selectedModel,
+      timestamp: Date.now()
+    };
+
+    const assistantWrapper = document.createElement('div');
+    assistantWrapper.className = 'message-wrapper assistant';
+
+    const assistantAvatar = document.createElement('div');
+    assistantAvatar.className = 'message-avatar assistant';
+    assistantAvatar.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path fill="url(#geminiSparkleGrad)" d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+      </svg>
+    `;
+
+    const assistantContainer = document.createElement('div');
+    assistantContainer.className = 'message-content-container';
+
+    let liveReasoningBlock = null;
+    let liveReasoningContent = null;
+
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'message-bubble assistant markdown-body';
+    assistantBubble.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Thinking...</span>';
+
+    assistantContainer.appendChild(assistantBubble);
+    assistantWrapper.appendChild(assistantAvatar);
+    assistantWrapper.appendChild(assistantContainer);
+    messagesInner.appendChild(assistantWrapper);
+    scrollToBottom();
+
+    activeAbortController = new AbortController();
+    btnSend.style.display = 'none';
+    btnStopStream.style.display = 'flex';
+
+    btnStopStream.onclick = () => {
+      if (activeAbortController) {
+        activeAbortController.abort();
+      }
+    };
+
+    try {
+      if (typeof puter === 'undefined' || !puter.ai || !puter.ai.chat) {
+        throw new Error('Puter.js AI SDK not available. Check your internet connection.');
+      }
+
+      // Prepare conversation payload
+      const conversationPayload = [
+        { role: 'system', content: settings.systemPrompt }
+      ];
+
+      session.messages.forEach(m => {
+        if (m.attachment) {
+          conversationPayload.push({
+            role: m.role,
+            content: [
+              { type: 'text', text: m.content || 'Analyze this image.' },
+              { type: 'file', puter_path: m.attachment }
+            ]
+          });
+        } else {
+          conversationPayload.push({
+            role: m.role,
+            content: m.content
+          });
+        }
+      });
+
+      const isReasoning = (settings.selectedModel || '').toLowerCase().includes('reason') ||
+                          (settings.selectedModel || '').toLowerCase().includes('r1') ||
+                          (settings.selectedModel || '').toLowerCase().includes('argon') ||
+                          (settings.selectedModel || '').toLowerCase().startsWith('o1') ||
+                          (settings.selectedModel || '').toLowerCase().startsWith('o3');
+
+      const chatOptions = {
+        model: settings.selectedModel,
+        stream: true,
+        signal: activeAbortController.signal
+      };
+
+      // Only pass temperature for non-reasoning models (models like o1/o3/argon reject temperature)
+      if (!isReasoning && typeof settings.temperature === 'number') {
+        chatOptions.temperature = settings.temperature;
+      }
+
+      const responseStream = await puter.ai.chat(conversationPayload, chatOptions);
+
+      let accumulatedText = '';
+      let accumulatedReasoning = '';
+
+      for await (const part of responseStream) {
+        if (part?.type === 'text' || part?.text) {
+          accumulatedText += (part.text || '');
+          assistantBubble.innerHTML = formatMarkdown(accumulatedText);
+          attachCodeCopyHandlers(assistantBubble);
+          scrollToBottom();
+        }
+
+        if (part?.type === 'reasoning' || part?.reasoning) {
+          const rChunk = part.reasoning || (typeof part.text === 'string' && part.type === 'reasoning' ? part.text : '');
+          if (rChunk) {
+            accumulatedReasoning += rChunk;
+            if (!liveReasoningBlock) {
+              liveReasoningBlock = document.createElement('div');
+              liveReasoningBlock.className = 'reasoning-block';
+              liveReasoningBlock.innerHTML = `
+                <div class="reasoning-header">
+                  <span>🧠 Thinking Process (Live)</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="reasoning-content"></div>
+              `;
+              liveReasoningBlock.querySelector('.reasoning-header').addEventListener('click', () => {
+                liveReasoningBlock.classList.toggle('collapsed');
+              });
+              assistantContainer.insertBefore(liveReasoningBlock, assistantBubble);
+              liveReasoningContent = liveReasoningBlock.querySelector('.reasoning-content');
+            }
+            liveReasoningContent.textContent = accumulatedReasoning;
+            scrollToBottom();
+          }
+        }
+
+        if (part?.type === 'error') {
+          throw new Error(part.message || 'Streaming error');
+        }
+      }
+
+      if (liveReasoningBlock) {
+        liveReasoningBlock.classList.add('collapsed');
+        liveReasoningBlock.querySelector('.reasoning-header span').textContent = '🧠 Thought Process';
+      }
+
+      assistantMsg.content = accumulatedText || '*(Empty response)*';
+      assistantMsg.reasoning = accumulatedReasoning;
+      session.messages.push(assistantMsg);
+      await persistSessions();
+
+      // Render action buttons
+      const actions = document.createElement('div');
+      actions.className = 'message-actions';
+      actions.innerHTML = `
+        <span class="message-meta-tag">${escapeHtml(settings.selectedModel)}</span>
+        <button class="icon-btn-sm btn-copy-msg" title="Copy response">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="icon-btn-sm btn-regen-msg" title="Regenerate">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+      `;
+      actions.querySelector('.btn-copy-msg').addEventListener('click', () => {
+        navigator.clipboard.writeText(assistantMsg.content);
+        showToast('Copied to clipboard');
+      });
+      actions.querySelector('.btn-regen-msg').addEventListener('click', () => {
+        regenerateFromIndex(session.messages.length - 1);
+      });
+      assistantContainer.appendChild(actions);
+
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        assistantBubble.innerHTML += '<br><em style="color: var(--text-muted); font-size: 0.8rem;">[Generation stopped by user]</em>';
+        assistantMsg.content = (assistantBubble.innerText || '') + ' [Stopped]';
+        session.messages.push(assistantMsg);
+        await persistSessions();
+      } else {
+        console.error('Chat error:', err);
+        const errorMsg = err.message || 'Failed to complete chat request.';
+        const isModelIssue = errorMsg.toLowerCase().includes('model not found') || 
+                             errorMsg.toLowerCase().includes('not available') ||
+                             errorMsg.toLowerCase().includes('rate limit') ||
+                             errorMsg.toLowerCase().includes('404') ||
+                             errorMsg.toLowerCase().includes('unknown model');
+
+        assistantBubble.innerHTML = `
+          <div class="chat-error-card">
+            <div class="chat-error-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger-color)" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <strong>Unable to complete request with ${escapeHtml(settings.selectedModel)}</strong>
+            </div>
+            <div class="chat-error-body">${escapeHtml(errorMsg)}</div>
+            ${isModelIssue ? `
+              <div class="chat-error-hint">This model is currently unavailable on Puter's upstream provider. Switch to one of our verified frontier models to continue seamlessly:</div>
+              <div class="chat-error-actions">
+                <button class="btn-recovery" data-switch-model="gemini-2.5-flash">Switch to Gemini 2.5 Flash</button>
+                <button class="btn-recovery" data-switch-model="gpt-4o-mini">Switch to GPT-4o Mini</button>
+                <button class="btn-recovery" data-switch-model="claude-sonnet-5">Switch to Claude Sonnet 5</button>
+              </div>
+            ` : `
+              <div class="chat-error-actions">
+                <button class="btn-recovery btn-retry-msg">Retry Request</button>
+              </div>
+            `}
+          </div>
+        `;
+
+        assistantBubble.querySelectorAll('[data-switch-model]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const newModelId = btn.getAttribute('data-switch-model');
+            const found = allModels.find(m => m.id === newModelId) || { id: newModelId, name: newModelId, canonicalFamily: 'AI' };
+            selectModel(found.id, found.name, found.canonicalFamily);
+            showToast(`Switched to ${found.name || newModelId}. Retrying...`);
+            assistantWrapper.remove();
+            await triggerAssistantResponse(session);
+          });
+        });
+
+        const retryBtn = assistantBubble.querySelector('.btn-retry-msg');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', async () => {
+            assistantWrapper.remove();
+            await triggerAssistantResponse(session);
+          });
+        }
+      }
+    } finally {
+      activeAbortController = null;
+      btnStopStream.style.display = 'none';
+      btnSend.style.display = 'flex';
+      btnSend.disabled = chatTextarea.value.trim().length === 0;
+      chatTextarea.focus();
+    }
+  }
+
+  // --- Drag and Drop File Upload ---
+  ['dragenter', 'dragover'].forEach(eventName => {
+    inputBoxContainer.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZoneOverlay.classList.add('active');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    inputBoxContainer.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZoneOverlay.classList.remove('active');
+    });
+  });
+
+  inputBoxContainer.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      handleImageFile(file);
+    } else {
+      showToast('Please drop an image file');
+    }
+  });
+
+  btnAttach.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) handleImageFile(file);
+  });
+
+  function handleImageFile(file) {
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      currentAttachment = {
+        name: file.name,
+        dataUrl: event.target.result,
+        type: file.type
+      };
+      attachmentImgPreview.src = currentAttachment.dataUrl;
+      attachmentFilename.textContent = file.name;
+      attachmentPreviewBar.style.display = 'flex';
+      btnSend.disabled = false;
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  }
+
+  function clearAttachment() {
+    currentAttachment = null;
+    attachmentPreviewBar.style.display = 'none';
+    attachmentImgPreview.src = '';
+  }
+
+  btnRemoveAttachment.addEventListener('click', () => {
+    clearAttachment();
+    btnSend.disabled = chatTextarea.value.trim().length === 0;
+  });
+
+  // --- Input & Keyboard Controls ---
+  chatTextarea.addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 180) + 'px';
+    btnSend.disabled = this.value.trim().length === 0 && !currentAttachment;
+  });
+
+  chatTextarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+
+  btnSend.addEventListener('click', handleSend);
+
+  // --- Scroll Utilities ---
+  function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
+  messagesContainer.addEventListener('scroll', () => {
+    const fromBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight;
+    if (fromBottom > 150) {
+      btnScrollBottom.classList.add('visible');
+    } else {
+      btnScrollBottom.classList.remove('visible');
+    }
+  });
+
+  btnScrollBottom.addEventListener('click', scrollToBottom);
+
+  // --- Gemini Sidebar Toggle Logic ---
+  function openSidebar() {
+    sidebar.classList.remove('closed');
+    if (window.innerWidth <= 768 && sidebarBackdrop) {
+      sidebarBackdrop.classList.add('active');
+    }
+  }
+
+  function closeSidebar() {
+    sidebar.classList.add('closed');
+    if (sidebarBackdrop) {
+      sidebarBackdrop.classList.remove('active');
+    }
+  }
+
+  function toggleSidebar() {
+    if (sidebar.classList.contains('closed')) {
+      openSidebar();
+    } else {
+      closeSidebar();
+    }
+  }
+
+  if (btnToggleSidebar) btnToggleSidebar.addEventListener('click', toggleSidebar);
+  if (btnSidebarCollapse) btnSidebarCollapse.addEventListener('click', closeSidebar);
+  if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', closeSidebar);
+  if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeSidebar);
+
+  // --- Modal Utilities ---
+  function openModal(modal) {
+    modal.classList.add('active');
+  }
+
+  function closeModal(modal) {
+    modal.classList.remove('active');
+  }
+
+  [modelModal, settingsModal].forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal(modal);
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModal(modelModal);
+      closeModal(settingsModal);
+    }
+  });
+
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // --- Startup Execution ---
+  initTheme();
+  initModalTabs();
+  loadLocalSettings();
+  initPuter();
+
+})();

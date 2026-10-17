@@ -33,6 +33,21 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
+    // Health & Info Route
+    if (url.pathname === "/api/info") {
+      return new Response(
+        JSON.stringify({
+          app: "LLM Chat App",
+          sdk: "Puter.js v2",
+          documentation: "https://docs.puter.com/llms.txt",
+          status: "online",
+        }),
+        {
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }
+
     // API Routes
     if (url.pathname === "/api/chat") {
       // Handle POST requests for chat
