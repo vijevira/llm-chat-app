@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=2.3">
+  <link rel="stylesheet" href="style.css?v=2.4">
   
   <!-- Highlight.js for code syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -68,6 +68,22 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
           New chat
         </button>
+      </div>
+
+      <!-- Custom Projects Section -->
+      <div class="projects-section" id="projects-section">
+        <div class="projects-section-header">
+          <div class="projects-section-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Projects</span>
+          </div>
+          <button class="icon-btn-xs" id="btn-create-project" title="Create New Project" aria-label="Create New Project">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="projects-list" id="projects-list">
+          <!-- Dynamically populated projects list -->
+        </div>
       </div>
 
       <div class="chat-history-container" id="chat-history-list">
@@ -128,6 +144,18 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
+          </div>
+
+          <!-- Active Project Pill Badge -->
+          <div class="topbar-project-pill" id="topbar-project-pill" style="display: none;" title="Active Workspace Project. Click to edit.">
+            <span class="project-pill-icon" id="topbar-project-icon">⚡</span>
+            <span class="project-pill-name" id="topbar-project-name">Project Name</span>
+            <button class="project-pill-btn-edit" id="btn-edit-active-project" title="Edit Project Settings">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="project-pill-btn-exit" id="btn-exit-project" title="Exit project to All Chats">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
 
           <!-- Gemini Model Picker Trigger Button -->
@@ -434,10 +462,139 @@
     </div>
   </div>
 
+  <!-- Custom Project Studio Modal -->
+  <div class="modal-backdrop" id="project-modal">
+    <div class="modal-dialog modal-dialog-lg" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="project-modal-header-icon" id="project-modal-header-icon">📁</span>
+          <h2 class="modal-title" id="project-modal-title">Custom Project Studio</h2>
+        </div>
+        <button class="btn-gemini-icon" id="btn-close-project-modal" title="Close" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <!-- Project Modal Tab Navigation -->
+      <nav class="modal-tabs">
+        <button class="modal-tab-btn active" data-tab="tab-project-overview">📋 Overview & Persona</button>
+        <button class="modal-tab-btn" data-tab="tab-project-instructions">🧠 Intent, Context & Output</button>
+        <button class="modal-tab-btn" data-tab="tab-project-files">📎 Knowledge Base & Files (<span id="project-modal-file-count">0</span>)</button>
+      </nav>
+
+      <div class="modal-body">
+        <!-- Tab 1: Overview & Persona -->
+        <div class="tab-content active" id="tab-project-overview">
+          <div class="form-group">
+            <label class="form-label" for="project-name-input">Project Name</label>
+            <input type="text" class="form-input" id="project-name-input" placeholder="e.g. Cloudflare Worker Architect, Python Data Engine" maxlength="60" />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="form-label">Project Icon / Badge</label>
+            <div class="emoji-picker-row" id="emoji-picker-row">
+              <button type="button" class="emoji-pill active" data-emoji="⚡">⚡</button>
+              <button type="button" class="emoji-pill" data-emoji="🚀">🚀</button>
+              <button type="button" class="emoji-pill" data-emoji="💻">💻</button>
+              <button type="button" class="emoji-pill" data-emoji="🔬">🔬</button>
+              <button type="button" class="emoji-pill" data-emoji="📊">📊</button>
+              <button type="button" class="emoji-pill" data-emoji="📝">📝</button>
+              <button type="button" class="emoji-pill" data-emoji="🎨">🎨</button>
+              <button type="button" class="emoji-pill" data-emoji="🛠️">🛠️</button>
+              <button type="button" class="emoji-pill" data-emoji="🤖">🤖</button>
+              <button type="button" class="emoji-pill" data-emoji="📈">📈</button>
+              <button type="button" class="emoji-pill" data-emoji="📚">📚</button>
+              <button type="button" class="emoji-pill" data-emoji="🌐">🌐</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="form-label" for="project-desc-input">Description</label>
+            <input type="text" class="form-input" id="project-desc-input" placeholder="Short description of what this project does..." maxlength="120" />
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="form-label" for="project-model-select">Preferred AI Model Override</label>
+            <select class="form-select" id="project-model-select">
+              <option value="">(Inherit Global Active Model)</option>
+            </select>
+            <span class="form-hint">Conversations inside this project will automatically run using this model.</span>
+          </div>
+        </div>
+
+        <!-- Tab 2: Instructions (Intent, Context & Output) -->
+        <div class="tab-content" id="tab-project-instructions">
+          <div class="form-group">
+            <label class="form-label" for="project-intent-input">
+              <span>🎯 Intent & Core Mission</span>
+              <span class="label-badge">Required</span>
+            </label>
+            <textarea class="form-textarea" id="project-intent-input" rows="3" placeholder="What is the AI's role and primary goal in this workspace? (e.g. Act as a principal engineer reviewing pull requests for latency and security vulnerabilities)"></textarea>
+            <span class="form-hint">Defines the identity, role, and overarching purpose of the assistant.</span>
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="form-label" for="project-context-input">
+              <span>📚 Background Context & Environment</span>
+              <span class="label-badge secondary">Recommended</span>
+            </label>
+            <textarea class="form-textarea" id="project-context-input" rows="4" placeholder="Technical stack, dependencies, domain terms, codebase architecture, and environment constraints..."></textarea>
+            <span class="form-hint">Information the AI should always be aware of during chats.</span>
+          </div>
+
+          <div class="form-group" style="margin-top: 0.75rem;">
+            <label class="form-label" for="project-output-input">
+              <span>📐 Output Specifications & Constraints</span>
+              <span class="label-badge secondary">Recommended</span>
+            </label>
+            <textarea class="form-textarea" id="project-output-input" rows="3" placeholder="Formatting rules: e.g. Always write full TypeScript types, concise bullet points, no conversational fluff, provide working code snippets only..."></textarea>
+            <span class="form-hint">Strict guidelines on structure, tone, and what not to do.</span>
+          </div>
+        </div>
+
+        <!-- Tab 3: Knowledge Base & Files -->
+        <div class="tab-content" id="tab-project-files">
+          <div class="project-knowledge-header">
+            <div>
+              <h4 style="font-size: 0.92rem; margin-bottom: 0.2rem;">Reference Documents & Knowledge Base</h4>
+              <p class="form-hint">Upload code files, markdown documentation, or text datasets. They are automatically injected as reference knowledge.</p>
+            </div>
+            <div class="project-token-badge" id="project-token-badge">
+              <span id="project-token-count">0</span> tokens est.
+            </div>
+          </div>
+
+          <!-- Dropzone -->
+          <div class="project-dropzone" id="project-dropzone">
+            <input type="file" id="project-file-input" multiple accept=".txt,.md,.markdown,.js,.ts,.jsx,.tsx,.py,.json,.csv,.html,.css,.yml,.yaml,.sql,.sh" style="display: none;" />
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="dropzone-text">
+              <strong>Click to upload</strong> or drag & drop documents here
+            </div>
+            <div class="dropzone-hint">
+              Supported: .txt, .md, .js, .ts, .py, .json, .csv, .html, .css, .yml, .sql
+            </div>
+          </div>
+
+          <!-- Files List -->
+          <div class="project-files-list" id="project-files-list">
+            <!-- Dynamically populated files -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-danger" id="btn-delete-project" style="margin-right: auto; display: none;">Delete Project</button>
+        <button class="btn-secondary" id="btn-cancel-project">Cancel</button>
+        <button class="btn-primary" id="btn-save-project">Save Project</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Main Chat Logic -->
-  <script src="chat.js?v=2.3"></script>
+  <script src="chat.js?v=2.4"></script>
 </body>
 </html>

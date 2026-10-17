@@ -11,6 +11,7 @@
   const STORAGE_KEY_SESSIONS = 'nexus_ai_chat_sessions';
   const STORAGE_KEY_SETTINGS = 'nexus_ai_settings';
   const STORAGE_KEY_THEME = 'nexus_ai_theme';
+  const STORAGE_KEY_PROJECTS = 'nexus_ai_projects';
 
   const PERSONA_PRESETS = {
     default: 'You are Nexus AI, a brilliant, friendly, and concise assistant. Format responses using clean markdown, bullet points, and code blocks where helpful.',
@@ -64,6 +65,12 @@
   let activeAbortController = null;
   let currentAttachment = null; // { name, dataUrl, type }
 
+  let projects = [];
+  let activeProjectId = null;
+  let editingProjectId = null;
+  let editingProjectFiles = [];
+  let editingProjectIcon = '⚡';
+
   let settings = {
     personaPreset: 'default',
     systemPrompt: PERSONA_PRESETS.default,
@@ -83,6 +90,9 @@
   const btnCloseSidebar = document.getElementById('btn-close-sidebar');
   const sidebarBackdrop = document.getElementById('sidebar-backdrop');
   const btnNewChat = document.getElementById('btn-new-chat');
+  const projectsSection = document.getElementById('projects-section');
+  const btnCreateProject = document.getElementById('btn-create-project');
+  const projectsList = document.getElementById('projects-list');
   const chatHistoryList = document.getElementById('chat-history-list');
 
   const userProfileBar = document.getElementById('user-profile-bar');
@@ -98,6 +108,12 @@
   const topbarRenameInput = document.getElementById('topbar-rename-input');
   const btnSaveTopbarRename = document.getElementById('btn-save-topbar-rename');
   const btnCancelTopbarRename = document.getElementById('btn-cancel-topbar-rename');
+
+  const topbarProjectPill = document.getElementById('topbar-project-pill');
+  const topbarProjectIcon = document.getElementById('topbar-project-icon');
+  const topbarProjectName = document.getElementById('topbar-project-name');
+  const btnEditActiveProject = document.getElementById('btn-edit-active-project');
+  const btnExitProject = document.getElementById('btn-exit-project');
 
   const btnThemeToggle = document.getElementById('btn-theme-toggle');
   const themeIconSun = document.getElementById('theme-icon-sun');
@@ -162,6 +178,27 @@
   const btnModalClearChats = document.getElementById('btn-modal-clear-chats');
   const toastContainer = document.getElementById('toast-container');
 
+  // Custom Project Studio Elements
+  const projectModal = document.getElementById('project-modal');
+  const btnCloseProjectModal = document.getElementById('btn-close-project-modal');
+  const btnCancelProject = document.getElementById('btn-cancel-project');
+  const btnSaveProject = document.getElementById('btn-save-project');
+  const btnDeleteProject = document.getElementById('btn-delete-project');
+  const projectNameInput = document.getElementById('project-name-input');
+  const projectDescInput = document.getElementById('project-desc-input');
+  const projectModelSelect = document.getElementById('project-model-select');
+  const projectIntentInput = document.getElementById('project-intent-input');
+  const projectContextInput = document.getElementById('project-context-input');
+  const projectOutputInput = document.getElementById('project-output-input');
+  const emojiPickerRow = document.getElementById('emoji-picker-row');
+  const projectDropzone = document.getElementById('project-dropzone');
+  const projectFileInput = document.getElementById('project-file-input');
+  const projectFilesList = document.getElementById('project-files-list');
+  const projectModalFileCount = document.getElementById('project-modal-file-count');
+  const projectTokenCount = document.getElementById('project-token-count');
+  const projectModalHeaderIcon = document.getElementById('project-modal-header-icon');
+  const projectModalTitle = document.getElementById('project-modal-title');
+
   // --- Initialize Marked & Highlighting ---
   if (typeof marked !== 'undefined') {
     marked.setOptions({
@@ -218,15 +255,19 @@
 
   // --- Settings & Modal Tabs ---
   function initModalTabs() {
-    modalTabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const targetTab = btn.getAttribute('data-tab');
-        modalTabBtns.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.modal-dialog').forEach(dialog => {
+      const tabBtns = dialog.querySelectorAll('.modal-tab-btn');
+      const tabPanes = dialog.querySelectorAll('.tab-content');
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetTab = btn.getAttribute('data-tab');
+          tabBtns.forEach(b => b.classList.remove('active'));
+          tabPanes.forEach(c => c.classList.remove('active'));
 
-        btn.classList.add('active');
-        const content = document.getElementById(targetTab);
-        if (content) content.classList.add('active');
+          btn.classList.add('active');
+          const content = dialog.querySelector(`#${targetTab}`);
+          if (content) content.classList.add('active');
+        });
       });
     });
   }
@@ -275,6 +316,7 @@
     } catch (e) {
       console.warn('Failed to load settings:', e);
     }
+    loadProjectsFromLocal();
     updateModelButtonUI();
   }
 
@@ -379,11 +421,13 @@
 
   userProfileBar.addEventListener('click', () => {
     populateSettingsModal();
-    // Switch directly to profile tab
-    modalTabBtns.forEach(b => b.classList.remove('active'));
-    tabContents.forEach(c => c.classList.remove('active'));
-    document.querySelector('[data-tab="tab-profile"]').classList.add('active');
-    document.getElementById('tab-profile').classList.add('active');
+    // Switch directly to profile tab within settingsModal
+    const settingsBtns = settingsModal.querySelectorAll('.modal-tab-btn');
+    const settingsPanes = settingsModal.querySelectorAll('.tab-content');
+    settingsBtns.forEach(b => b.classList.remove('active'));
+    settingsPanes.forEach(c => c.classList.remove('active'));
+    settingsModal.querySelector('[data-tab="tab-profile"]')?.classList.add('active');
+    settingsModal.querySelector('#tab-profile')?.classList.add('active');
     openModal(settingsModal);
   });
 
@@ -402,9 +446,11 @@
       await loadCloudSettings();
       await updateAuthUI();
       fetchPuterModels();
+      await loadProjects();
       await loadSessions();
     } catch (err) {
       console.error('Puter init error:', err);
+      loadProjectsFromLocal();
       loadSessionsFromLocal();
     }
   }
@@ -479,6 +525,7 @@
       await puter.auth.signOut();
       updateAuthUI();
       showToast('Signed out from Puter');
+      loadProjectsFromLocal();
       loadSessionsFromLocal();
     } else {
       try {
@@ -486,6 +533,7 @@
         if (puter.auth.isSignedIn()) {
           const user = await puter.auth.getUser();
           await loadCloudSettings();
+          await loadProjects();
           await updateAuthUI();
           showToast(`Welcome back, ${getEffectiveDisplayName() || user.username || 'friend'}!`);
           await loadSessions();
@@ -652,6 +700,7 @@
       console.warn('puter.ai.listModels fallback to curated:', e);
       allModels = CURATED_MODELS.map(m => normalizeModel(m));
     }
+    updateProjectModelOptions();
   }
 
   function renderModelsList() {
@@ -785,6 +834,434 @@
   btnCloseModelModal.addEventListener('click', () => closeModal(modelModal));
   btnCancelModelModal.addEventListener('click', () => closeModal(modelModal));
 
+  // --- Custom Projects (Workspaces) Management ---
+  async function loadProjects() {
+    if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+      try {
+        const cloudData = await puter.kv.get(STORAGE_KEY_PROJECTS);
+        if (cloudData) {
+          projects = typeof cloudData === 'string' ? JSON.parse(cloudData) : cloudData;
+          localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+          renderProjectsList();
+          updateTopbarProjectPill();
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to load projects from Puter KV:', err);
+      }
+    }
+    loadProjectsFromLocal();
+  }
+
+  function loadProjectsFromLocal() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEY_PROJECTS);
+      projects = local ? JSON.parse(local) : [];
+    } catch (e) {
+      projects = [];
+    }
+    renderProjectsList();
+    updateTopbarProjectPill();
+  }
+
+  async function persistProjects() {
+    try {
+      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+      if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
+        await puter.kv.set(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+      }
+    } catch (e) {
+      console.warn('Failed to persist projects:', e);
+    }
+    renderProjectsList();
+    updateTopbarProjectPill();
+  }
+
+  function getActiveProject() {
+    if (!activeProjectId) return null;
+    return projects.find(p => p.id === activeProjectId) || null;
+  }
+
+  function selectProject(projectId) {
+    if (activeProjectId === projectId) return;
+    activeProjectId = projectId;
+    updateTopbarProjectPill();
+    renderProjectsList();
+    renderSessionList();
+
+    const projectSessions = sessions.filter(s => s.projectId === activeProjectId);
+    if (projectSessions.length > 0) {
+      switchSession(projectSessions[0].id);
+    } else {
+      createNewSession();
+    }
+
+    const proj = getActiveProject();
+    if (proj) {
+      showToast(`Entered project: ${proj.name}`);
+    }
+  }
+
+  function exitProject() {
+    if (!activeProjectId) return;
+    activeProjectId = null;
+    updateTopbarProjectPill();
+    renderProjectsList();
+    renderSessionList();
+    restoreActiveSession();
+    showToast('Exited to standard chats');
+  }
+
+  function updateTopbarProjectPill() {
+    const proj = getActiveProject();
+    if (proj && topbarProjectPill) {
+      if (topbarProjectIcon) topbarProjectIcon.textContent = proj.icon || '📁';
+      if (topbarProjectName) topbarProjectName.textContent = proj.name || 'Untitled Project';
+      topbarProjectPill.style.display = 'inline-flex';
+    } else if (topbarProjectPill) {
+      topbarProjectPill.style.display = 'none';
+    }
+  }
+
+  function renderProjectsList() {
+    if (!projectsList) return;
+    projectsList.innerHTML = '';
+
+    if (projects.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'projects-empty-hint';
+      empty.textContent = 'No custom projects yet. Click + to build your first AI workspace!';
+      projectsList.appendChild(empty);
+      return;
+    }
+
+    projects.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'project-nav-item' + (p.id === activeProjectId ? ' active' : '');
+      item.setAttribute('data-id', p.id);
+
+      const fileCount = (p.files && p.files.length) ? p.files.length : 0;
+      const fileBadge = fileCount > 0 ? `<span class="project-nav-badge" title="${fileCount} attached files">${fileCount}</span>` : '';
+
+      item.innerHTML = `
+        <div class="project-nav-main">
+          <span class="project-nav-icon">${escapeHtml(p.icon || '📁')}</span>
+          <span class="project-nav-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+          ${fileBadge}
+        </div>
+        <div class="project-nav-actions">
+          <button class="icon-btn-xs btn-edit-project" title="Edit Project Studio" aria-label="Edit project">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+      `;
+
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-edit-project')) return;
+        selectProject(p.id);
+      });
+
+      const btnEdit = item.querySelector('.btn-edit-project');
+      if (btnEdit) {
+        btnEdit.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openProjectModal(p.id);
+        });
+      }
+
+      projectsList.appendChild(item);
+    });
+  }
+
+  function updateProjectModelOptions() {
+    if (!projectModelSelect) return;
+    const currentVal = projectModelSelect.value;
+    projectModelSelect.innerHTML = `<option value="">(Inherit Global Active Model: ${escapeHtml(settings.selectedModel)})</option>`;
+
+    allModels.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.name} (${m.canonicalFamily || m.rawProvider || 'AI'})`;
+      projectModelSelect.appendChild(opt);
+    });
+
+    if (currentVal) {
+      projectModelSelect.value = currentVal;
+    }
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function calculateProjectTokens() {
+    let chars = (projectIntentInput?.value || '').length +
+                (projectContextInput?.value || '').length +
+                (projectOutputInput?.value || '').length;
+    editingProjectFiles.forEach(f => {
+      chars += (f.content || '').length;
+    });
+    return Math.ceil(chars / 4);
+  }
+
+  function updateProjectTokenCounter() {
+    if (!projectTokenCount) return;
+    const tokens = calculateProjectTokens();
+    projectTokenCount.textContent = tokens.toLocaleString();
+  }
+
+  function renderProjectFilesList() {
+    if (!projectFilesList) return;
+    projectFilesList.innerHTML = '';
+
+    if (editingProjectFiles.length === 0) {
+      projectFilesList.innerHTML = `
+        <div style="text-align: center; padding: 1.25rem 0.5rem; color: var(--text-muted); font-size: 0.82rem;">
+          No documents attached yet. Drop files above to enrich this project's knowledge.
+        </div>
+      `;
+      if (projectModalFileCount) projectModalFileCount.textContent = '0';
+      return;
+    }
+
+    if (projectModalFileCount) {
+      projectModalFileCount.textContent = editingProjectFiles.length;
+    }
+
+    editingProjectFiles.forEach((f, idx) => {
+      const card = document.createElement('div');
+      card.className = 'project-file-card';
+      card.innerHTML = `
+        <div class="project-file-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="project-file-meta">
+          <div class="project-file-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+          <div class="project-file-info">
+            <span>${formatFileSize(f.size)}</span>
+            <span>•</span>
+            <span>~${(f.tokens || 0).toLocaleString()} tokens</span>
+          </div>
+        </div>
+        <button type="button" class="project-file-btn-delete" title="Remove document" aria-label="Remove document">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      `;
+
+      card.querySelector('.project-file-btn-delete').addEventListener('click', () => {
+        editingProjectFiles.splice(idx, 1);
+        renderProjectFilesList();
+        updateProjectTokenCounter();
+      });
+
+      projectFilesList.appendChild(card);
+    });
+  }
+
+  function handleProjectFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const maxFileSize = 2 * 1024 * 1024; // 2MB limit per file
+
+    Array.from(fileList).forEach(file => {
+      if (file.size > maxFileSize) {
+        showToast(`File "${file.name}" exceeds 2MB limit.`);
+        return;
+      }
+
+      const existing = editingProjectFiles.find(f => f.name === file.name);
+      if (existing) {
+        showToast(`"${file.name}" is already attached.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const textContent = e.target.result;
+        if (typeof textContent === 'string') {
+          const tokens = Math.ceil(textContent.length / 4);
+          editingProjectFiles.push({
+            id: 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            name: file.name,
+            size: file.size,
+            type: file.type || 'text/plain',
+            content: textContent,
+            tokens: tokens
+          });
+          renderProjectFilesList();
+          updateProjectTokenCounter();
+        }
+      };
+      reader.onerror = () => {
+        showToast(`Failed to read "${file.name}"`);
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function openProjectModal(projectId = null) {
+    editingProjectId = projectId;
+    updateProjectModelOptions();
+
+    // Reset tabs to Overview
+    const dialog = projectModal.querySelector('.modal-dialog');
+    if (dialog) {
+      const tabBtns = dialog.querySelectorAll('.modal-tab-btn');
+      const tabPanes = dialog.querySelectorAll('.tab-content');
+      tabBtns.forEach(b => b.classList.remove('active'));
+      tabPanes.forEach(c => c.classList.remove('active'));
+      dialog.querySelector('[data-tab="tab-project-overview"]')?.classList.add('active');
+      dialog.querySelector('#tab-project-overview')?.classList.add('active');
+    }
+
+    if (projectId) {
+      const proj = projects.find(p => p.id === projectId);
+      if (!proj) return;
+      if (projectModalTitle) projectModalTitle.textContent = 'Edit Project Studio';
+      editingProjectIcon = proj.icon || '⚡';
+      if (projectNameInput) projectNameInput.value = proj.name || '';
+      if (projectDescInput) projectDescInput.value = proj.description || '';
+      if (projectModelSelect) projectModelSelect.value = proj.model || '';
+      if (projectIntentInput) projectIntentInput.value = proj.intent || '';
+      if (projectContextInput) projectContextInput.value = proj.context || '';
+      if (projectOutputInput) projectOutputInput.value = proj.outputGuidelines || '';
+      editingProjectFiles = (proj.files || []).map(f => ({ ...f }));
+      if (btnDeleteProject) btnDeleteProject.style.display = 'inline-flex';
+    } else {
+      if (projectModalTitle) projectModalTitle.textContent = 'Create Custom Project';
+      editingProjectIcon = '⚡';
+      if (projectNameInput) projectNameInput.value = '';
+      if (projectDescInput) projectDescInput.value = '';
+      if (projectModelSelect) projectModelSelect.value = '';
+      if (projectIntentInput) projectIntentInput.value = '';
+      if (projectContextInput) projectContextInput.value = '';
+      if (projectOutputInput) projectOutputInput.value = '';
+      editingProjectFiles = [];
+      if (btnDeleteProject) btnDeleteProject.style.display = 'none';
+    }
+
+    if (projectModalHeaderIcon) projectModalHeaderIcon.textContent = editingProjectIcon;
+    if (emojiPickerRow) {
+      emojiPickerRow.querySelectorAll('.emoji-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.getAttribute('data-emoji') === editingProjectIcon);
+      });
+    }
+
+    renderProjectFilesList();
+    updateProjectTokenCounter();
+    openModal(projectModal);
+    setTimeout(() => projectNameInput?.focus(), 80);
+  }
+
+  async function saveProject() {
+    const name = projectNameInput ? projectNameInput.value.trim() : '';
+    if (!name) {
+      showToast('Please enter a project name');
+      projectNameInput?.focus();
+      return;
+    }
+
+    const projectData = {
+      id: editingProjectId || ('proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+      name: name,
+      description: projectDescInput ? projectDescInput.value.trim() : '',
+      icon: editingProjectIcon || '⚡',
+      model: projectModelSelect ? projectModelSelect.value : '',
+      intent: projectIntentInput ? projectIntentInput.value.trim() : '',
+      context: projectContextInput ? projectContextInput.value.trim() : '',
+      outputGuidelines: projectOutputInput ? projectOutputInput.value.trim() : '',
+      files: editingProjectFiles,
+      updatedAt: Date.now()
+    };
+
+    if (editingProjectId) {
+      const idx = projects.findIndex(p => p.id === editingProjectId);
+      if (idx !== -1) {
+        projects[idx] = projectData;
+      } else {
+        projects.unshift(projectData);
+      }
+    } else {
+      projects.unshift(projectData);
+    }
+
+    await persistProjects();
+    closeModal(projectModal);
+    selectProject(projectData.id);
+    showToast(`Project "${projectData.name}" saved!`);
+  }
+
+  async function deleteProject(projectId) {
+    if (!projectId) return;
+    const proj = projects.find(p => p.id === projectId);
+    const projName = proj ? proj.name : 'Project';
+
+    projects = projects.filter(p => p.id !== projectId);
+    if (activeProjectId === projectId) {
+      activeProjectId = null;
+    }
+    sessions.forEach(s => {
+      if (s.projectId === projectId) {
+        s.projectId = null;
+      }
+    });
+
+    await persistProjects();
+    await persistSessions();
+    closeModal(projectModal);
+    renderProjectsList();
+    renderSessionList();
+    restoreActiveSession();
+    showToast(`Project "${projName}" deleted`);
+  }
+
+  function compileProjectSystemPrompt(project) {
+    if (!project) return settings.systemPrompt;
+
+    const sections = [];
+    sections.push(`You are an expert AI assistant operating strictly within the custom project workspace: "${project.name}".`);
+
+    if (project.description) {
+      sections.push(`Workspace Mission: ${project.description}`);
+    }
+
+    if (project.intent) {
+      sections.push(`### 1. PROJECT OBJECTIVE & INTENT\n${project.intent}`);
+    }
+
+    if (project.context) {
+      sections.push(`### 2. BACKGROUND CONTEXT & ENVIRONMENT\n${project.context}`);
+    }
+
+    if (project.outputGuidelines) {
+      sections.push(`### 3. OUTPUT SPECIFICATIONS & GUIDELINES\n${project.outputGuidelines}`);
+    }
+
+    if (project.files && project.files.length > 0) {
+      const fileDocs = project.files.map(f => {
+        return `--- BEGIN FILE: ${f.name} ---\n${f.content}\n--- END FILE: ${f.name} ---`;
+      }).join('\n\n');
+      sections.push(`### 4. PROJECT KNOWLEDGE BASE & ATTACHED DOCUMENTS\nReference the following uploaded files as accurate primary source materials for this workspace:\n\n${fileDocs}`);
+    }
+
+    // User Profile
+    const effectiveDisplayName = getEffectiveDisplayName();
+    const effectiveUsernameHandle = getEffectiveUsernameHandle();
+    if (effectiveDisplayName !== 'Guest User' || effectiveUsernameHandle) {
+      sections.push(`### USER PROFILE\nYou are speaking with ${effectiveDisplayName}${effectiveUsernameHandle ? ` (@${effectiveUsernameHandle})` : ''}. Address them naturally when appropriate.`);
+    }
+
+    // General instructions if configured
+    if (settings.systemPrompt && settings.systemPrompt !== PERSONA_PRESETS.default) {
+      sections.push(`### GENERAL INSTRUCTIONS\n${settings.systemPrompt}`);
+    }
+
+    return sections.join('\n\n');
+  }
+
   // --- Session & History Management ---
   async function loadSessions() {
     if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode === 'cloud') {
@@ -839,11 +1316,13 @@
   }
 
   function createNewSession() {
+    const proj = getActiveProject();
     const newSession = {
       id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      title: 'New Conversation',
+      title: proj ? `${proj.icon || '📁'} New Chat` : 'New Conversation',
       createdAt: Date.now(),
-      model: settings.selectedModel,
+      model: (proj && proj.model) ? proj.model : settings.selectedModel,
+      projectId: activeProjectId || null,
       messages: []
     };
     sessions.unshift(newSession);
@@ -855,8 +1334,12 @@
   }
 
   function restoreActiveSession() {
-    if (sessions.length > 0) {
-      currentSessionId = sessions[0].id;
+    const filtered = activeProjectId
+      ? sessions.filter(s => s.projectId === activeProjectId)
+      : sessions;
+
+    if (filtered.length > 0) {
+      currentSessionId = filtered[0].id;
     } else {
       createNewSession();
       return;
@@ -870,6 +1353,12 @@
       activeAbortController = null;
     }
     currentSessionId = id;
+    const session = sessions.find(s => s.id === id);
+    if (session) {
+      activeProjectId = session.projectId || null;
+      updateTopbarProjectPill();
+      renderProjectsList();
+    }
     renderSessionList();
     renderActiveSession();
   }
@@ -878,7 +1367,8 @@
     if (e) e.stopPropagation();
     sessions = sessions.filter(s => s.id !== id);
     if (currentSessionId === id) {
-      currentSessionId = sessions.length > 0 ? sessions[0].id : null;
+      const remaining = activeProjectId ? sessions.filter(s => s.projectId === activeProjectId) : sessions;
+      currentSessionId = remaining.length > 0 ? remaining[0].id : null;
     }
     persistSessions();
     renderSessionList();
@@ -966,21 +1456,40 @@
   });
 
   function renderSessionList() {
-    chatHistoryList.innerHTML = '<div class="chat-history-title">Recent Conversations</div>';
+    const proj = getActiveProject();
+    if (proj) {
+      chatHistoryList.innerHTML = `<div class="chat-history-title">${escapeHtml(proj.icon || '📁')} ${escapeHtml(proj.name)} Chats</div>`;
+    } else {
+      chatHistoryList.innerHTML = '<div class="chat-history-title">Recent Conversations</div>';
+    }
 
-    if (sessions.length === 0) {
+    const filteredSessions = activeProjectId
+      ? sessions.filter(s => s.projectId === activeProjectId)
+      : sessions;
+
+    if (filteredSessions.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding: 0.75rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);';
-      empty.textContent = 'No past conversations';
+      empty.textContent = activeProjectId ? 'No conversations in this project yet' : 'No past conversations';
       chatHistoryList.appendChild(empty);
       return;
     }
 
-    sessions.forEach(s => {
+    filteredSessions.forEach(s => {
       const item = document.createElement('div');
       item.className = 'chat-item' + (s.id === currentSessionId ? ' active' : '');
       item.setAttribute('data-id', s.id);
+
+      let projectTag = '';
+      if (!activeProjectId && s.projectId) {
+        const p = projects.find(projItem => projItem.id === s.projectId);
+        if (p) {
+          projectTag = `<span class="chat-item-project-tag" title="Project: ${escapeHtml(p.name)}">${escapeHtml(p.icon || '📁')}</span>`;
+        }
+      }
+
       item.innerHTML = `
+        ${projectTag}
         <span class="chat-item-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
         <div class="chat-item-actions">
           <button class="icon-btn-sm btn-rename-chat" title="Rename conversation" aria-label="Rename conversation">
@@ -1166,6 +1675,15 @@
     if (!session || session.messages.length === 0) {
       messagesInner.appendChild(welcomeContainer);
       welcomeContainer.style.display = 'flex';
+      const welcomeSubtitle = welcomeContainer.querySelector('.welcome-gemini-subtitle');
+      if (welcomeSubtitle) {
+        const proj = getActiveProject();
+        if (proj) {
+          welcomeSubtitle.innerHTML = `Working in <strong>${escapeHtml(proj.icon || '⚡')} ${escapeHtml(proj.name)}</strong> workspace`;
+        } else {
+          welcomeSubtitle.textContent = 'How can I help you today?';
+        }
+      }
       setupStarterCards();
       return;
     }
@@ -1389,11 +1907,16 @@
   }
 
   async function triggerAssistantResponse(session) {
+    const sessionProj = (session && session.projectId)
+      ? projects.find(p => p.id === session.projectId)
+      : getActiveProject();
+    const effectiveModel = (sessionProj && sessionProj.model) ? sessionProj.model : settings.selectedModel;
+
     const assistantMsg = {
       role: 'assistant',
       content: '',
       reasoning: '',
-      model: settings.selectedModel,
+      model: effectiveModel,
       timestamp: Date.now()
     };
 
@@ -1439,9 +1962,13 @@
         throw new Error('Puter.js AI SDK not available. Check your internet connection.');
       }
 
-      // Prepare conversation payload
+      // Prepare conversation payload with compiled project instructions or global system prompt
+      const systemPromptContent = sessionProj
+        ? compileProjectSystemPrompt(sessionProj)
+        : settings.systemPrompt;
+
       const conversationPayload = [
-        { role: 'system', content: settings.systemPrompt }
+        { role: 'system', content: systemPromptContent }
       ];
 
       session.messages.forEach(m => {
@@ -1461,14 +1988,14 @@
         }
       });
 
-      const isReasoning = (settings.selectedModel || '').toLowerCase().includes('reason') ||
-                          (settings.selectedModel || '').toLowerCase().includes('r1') ||
-                          (settings.selectedModel || '').toLowerCase().includes('argon') ||
-                          (settings.selectedModel || '').toLowerCase().startsWith('o1') ||
-                          (settings.selectedModel || '').toLowerCase().startsWith('o3');
+      const isReasoning = (effectiveModel || '').toLowerCase().includes('reason') ||
+                          (effectiveModel || '').toLowerCase().includes('r1') ||
+                          (effectiveModel || '').toLowerCase().includes('argon') ||
+                          (effectiveModel || '').toLowerCase().startsWith('o1') ||
+                          (effectiveModel || '').toLowerCase().startsWith('o3');
 
       const chatOptions = {
-        model: settings.selectedModel,
+        model: effectiveModel,
         stream: true,
         signal: activeAbortController.signal
       };
@@ -1766,7 +2293,90 @@
     modal.classList.remove('active');
   }
 
-  [modelModal, settingsModal].forEach(modal => {
+  // --- Project Modal & Project Topbar Listeners ---
+  if (btnCreateProject) {
+    btnCreateProject.addEventListener('click', () => openProjectModal(null));
+  }
+
+  if (btnEditActiveProject) {
+    btnEditActiveProject.addEventListener('click', () => openProjectModal(activeProjectId));
+  }
+
+  if (btnExitProject) {
+    btnExitProject.addEventListener('click', exitProject);
+  }
+
+  if (btnCloseProjectModal) {
+    btnCloseProjectModal.addEventListener('click', () => closeModal(projectModal));
+  }
+
+  if (btnCancelProject) {
+    btnCancelProject.addEventListener('click', () => closeModal(projectModal));
+  }
+
+  if (btnSaveProject) {
+    btnSaveProject.addEventListener('click', saveProject);
+  }
+
+  if (btnDeleteProject) {
+    btnDeleteProject.addEventListener('click', () => deleteProject(editingProjectId));
+  }
+
+  if (emojiPickerRow) {
+    emojiPickerRow.addEventListener('click', (e) => {
+      const pill = e.target.closest('.emoji-pill');
+      if (!pill) return;
+      emojiPickerRow.querySelectorAll('.emoji-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      editingProjectIcon = pill.getAttribute('data-emoji') || '⚡';
+      if (projectModalHeaderIcon) projectModalHeaderIcon.textContent = editingProjectIcon;
+    });
+  }
+
+  if (projectDropzone) {
+    projectDropzone.addEventListener('click', () => {
+      if (projectFileInput) projectFileInput.click();
+    });
+
+    projectDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      projectDropzone.classList.add('dragover');
+    });
+
+    projectDropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      projectDropzone.classList.remove('dragover');
+    });
+
+    projectDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      projectDropzone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files) {
+        handleProjectFiles(e.dataTransfer.files);
+      }
+    });
+  }
+
+  if (projectFileInput) {
+    projectFileInput.addEventListener('change', (e) => {
+      if (e.target.files) {
+        handleProjectFiles(e.target.files);
+        projectFileInput.value = '';
+      }
+    });
+  }
+
+  [projectIntentInput, projectContextInput, projectOutputInput].forEach(inp => {
+    if (inp) {
+      inp.addEventListener('input', updateProjectTokenCounter);
+    }
+  });
+
+  [modelModal, settingsModal, projectModal].forEach(modal => {
+    if (!modal) return;
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
     });
@@ -1776,6 +2386,7 @@
     if (e.key === 'Escape') {
       closeModal(modelModal);
       closeModal(settingsModal);
+      if (projectModal) closeModal(projectModal);
     }
   });
 
