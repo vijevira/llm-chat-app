@@ -249,6 +249,58 @@
   let studioPreviewAbortController = null;
   let studioPreviewHistory = [];
 
+  // Interactive Artifacts & Sandboxed Web Apps Elements
+  const artifactsPane = document.getElementById('artifacts-pane');
+  const artifactsTitle = document.getElementById('artifacts-title');
+  const artifactsSandboxFrame = document.getElementById('artifacts-sandbox-frame');
+  const artifactsFrameContainer = document.getElementById('artifacts-frame-container');
+  const btnArtifactVpDesktop = document.getElementById('btn-artifact-vp-desktop');
+  const btnArtifactVpMobile = document.getElementById('btn-artifact-vp-mobile');
+  const btnArtifactReload = document.getElementById('btn-artifact-reload');
+  const btnPublishArtifact = document.getElementById('btn-publish-artifact');
+  const btnCloseArtifacts = document.getElementById('btn-close-artifacts');
+  const artifactsPublishedBanner = document.getElementById('artifacts-published-banner');
+  const artifactsPublishedLink = document.getElementById('artifacts-published-link');
+  const btnCopyPublishedLink = document.getElementById('btn-copy-published-link');
+  const mainChat = document.querySelector('.main-chat');
+  let currentArtifact = { title: '', code: '', lang: '', publishedUrl: null };
+
+  // --- Plugins & Tools Engine Elements ---
+  const STORAGE_KEY_PLUGINS = 'omni_plugins_state';
+  const pillToolSearch = document.getElementById('pill-tool-search');
+  const pillToolCode = document.getElementById('pill-tool-code');
+  const pillManagePlugins = document.getElementById('pill-manage-plugins');
+  const toolToggleSearch = document.getElementById('tool-toggle-search');
+  const toolToggleCode = document.getElementById('tool-toggle-code');
+  const toolBadgeSearch = document.getElementById('tool-badge-search');
+  const toolBadgeCode = document.getElementById('tool-badge-code');
+  const pluginsModal = document.getElementById('plugins-modal');
+  const btnClosePluginsModal = document.getElementById('btn-close-plugins-modal');
+  const btnClosePluginsModalFooter = document.getElementById('btn-close-plugins-modal-footer');
+  const togglePluginSearch = document.getElementById('toggle-plugin-search');
+  const togglePluginCode = document.getElementById('toggle-plugin-code');
+  const badgePluginSearchStatus = document.getElementById('badge-plugin-search-status');
+  const badgePluginCodeStatus = document.getElementById('badge-plugin-code-status');
+
+  // --- Custom AI Apps & Community Catalog Elements ---
+  const btnExploreApps = document.getElementById('btn-explore-apps');
+  const exploreAppsModal = document.getElementById('explore-apps-modal');
+  const btnCloseExploreAppsModal = document.getElementById('btn-close-explore-apps-modal');
+  const btnCancelExploreAppsModal = document.getElementById('btn-cancel-explore-apps-modal');
+  const exploreAppsSearch = document.getElementById('explore-apps-search');
+  const exploreAppsGrid = document.getElementById('explore-apps-grid');
+  const exploreCategoryPills = document.getElementById('explore-category-pills');
+  const btnStudioShare = document.getElementById('btn-studio-share');
+  const btnAddFormField = document.getElementById('btn-add-form-field');
+  const appFormFieldsBuilder = document.getElementById('app-form-fields-builder');
+
+  let pluginsState = {
+    webSearch: false,
+    codeRunner: false
+  };
+
+  let editingProjectFormFields = [];
+
   // --- Initialize Marked & Highlighting ---
   if (typeof marked !== 'undefined') {
     marked.setOptions({
@@ -598,6 +650,7 @@
       } else {
         console.log(`[Omni Sync] Payload (${jsonStr.length} bytes) exceeds Puter KV limit. Stored safely via puter.fs.`);
       }
+    }
     return fsSuccess;
   }
 
@@ -1659,7 +1712,9 @@
       if (projectContextInput) projectContextInput.value = proj.context || '';
       if (projectOutputInput) projectOutputInput.value = proj.outputGuidelines || '';
       editingProjectFiles = (proj.files || []).map(f => ({ ...f }));
+      editingProjectFormFields = (proj.formFields || []).map(f => ({ ...f }));
       if (btnStudioDelete) btnStudioDelete.style.display = 'inline-flex';
+      if (btnStudioShare) btnStudioShare.style.display = 'inline-flex';
     } else {
       if (studioHeaderTitle) studioHeaderTitle.textContent = 'Create Custom Project';
       editingProjectIcon = '⚡';
@@ -1670,7 +1725,9 @@
       if (projectContextInput) projectContextInput.value = '';
       if (projectOutputInput) projectOutputInput.value = '';
       editingProjectFiles = [];
+      editingProjectFormFields = [];
       if (btnStudioDelete) btnStudioDelete.style.display = 'none';
+      if (btnStudioShare) btnStudioShare.style.display = 'none';
     }
 
     if (studioHeaderIcon) studioHeaderIcon.textContent = editingProjectIcon;
@@ -1681,6 +1738,7 @@
     }
 
     renderProjectFilesList();
+    renderAppFormFieldsBuilder();
     updateProjectTokenCounter();
     setTimeout(() => projectNameInput?.focus(), 80);
   }
@@ -1814,6 +1872,7 @@
       context: projectContextInput ? projectContextInput.value.trim() : '',
       outputGuidelines: projectOutputInput ? projectOutputInput.value.trim() : '',
       files: editingProjectFiles,
+      formFields: (editingProjectFormFields || []).filter(f => f && f.label && f.label.trim()),
       updatedAt: Date.now()
     };
 
@@ -2395,13 +2454,70 @@
       messagesInner.appendChild(welcomeContainer);
       welcomeContainer.style.display = 'flex';
       const welcomeSubtitle = welcomeContainer.querySelector('.welcome-gemini-subtitle');
-      if (welcomeSubtitle) {
-        const proj = getActiveProject();
-        if (proj) {
+      const proj = getActiveProject();
+
+      const existingGuidedForm = welcomeContainer.querySelector('.app-guided-form-card');
+      if (existingGuidedForm) existingGuidedForm.remove();
+
+      if (proj) {
+        if (welcomeSubtitle) {
           welcomeSubtitle.innerHTML = `Working in <strong>${escapeHtml(proj.icon || '⚡')} ${escapeHtml(proj.name)}</strong> workspace`;
+        }
+        if (proj.formFields && Array.isArray(proj.formFields) && proj.formFields.length > 0) {
+          const starterGrid = welcomeContainer.querySelector('.starter-grid');
+          if (starterGrid) starterGrid.style.display = 'none';
+
+          const formCard = document.createElement('div');
+          formCard.className = 'app-guided-form-card';
+          formCard.innerHTML = `
+            <div class="guided-form-header">
+              <span class="guided-form-badge">🚀 Guided Generator</span>
+              <span class="guided-form-title">${escapeHtml(proj.name)}</span>
+            </div>
+            <div class="guided-form-fields">
+              ${proj.formFields.map(field => `
+                <div class="guided-field-group">
+                  <label class="guided-field-label">${escapeHtml(field.label)}</label>
+                  ${field.type === 'textarea'
+                    ? `<textarea class="form-textarea guided-field-input" data-label="${escapeHtml(field.label)}" rows="2" placeholder="${escapeHtml(field.placeholder || '')}"></textarea>`
+                    : `<input type="text" class="form-input guided-field-input" data-label="${escapeHtml(field.label)}" placeholder="${escapeHtml(field.placeholder || '')}" />`
+                  }
+                </div>
+              `).join('')}
+            </div>
+            <button class="btn-primary btn-sm btn-generate-from-form" type="button">
+              <span>Generate Response</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          `;
+
+          formCard.querySelector('.btn-generate-from-form').addEventListener('click', () => {
+            const inputs = formCard.querySelectorAll('.guided-field-input');
+            const lines = [];
+            inputs.forEach(inp => {
+              const label = inp.getAttribute('data-label');
+              const val = inp.value.trim();
+              if (val) lines.push(`**${label}**: ${val}`);
+            });
+            if (lines.length === 0) {
+              showToast('Please fill out at least one field.');
+              return;
+            }
+            chatTextarea.value = lines.join('\n');
+            handleSend();
+          });
+
+          welcomeContainer.appendChild(formCard);
         } else {
+          const starterGrid = welcomeContainer.querySelector('.starter-grid');
+          if (starterGrid) starterGrid.style.display = 'grid';
+        }
+      } else {
+        if (welcomeSubtitle) {
           welcomeSubtitle.textContent = 'How can I help you today?';
         }
+        const starterGrid = welcomeContainer.querySelector('.starter-grid');
+        if (starterGrid) starterGrid.style.display = 'grid';
       }
       setupStarterCards();
       return;
@@ -2556,6 +2672,12 @@
       });
 
       container.appendChild(musicCard);
+    }
+
+    // Optional Web Search Grounding Card
+    if (msg.searchSources && Array.isArray(msg.searchSources) && msg.searchSources.length > 0) {
+      const searchCard = createSearchSourcesCard(msg.searchSources, msg.searchQuery);
+      container.appendChild(searchCard);
     }
 
     const bubble = document.createElement('div');
@@ -2858,6 +2980,745 @@
     return escapeHtml(content).replace(/\n/g, '<br>');
   }
 
+  // --- Phase 1: Interactive Artifacts & Sandboxed Web Apps Runner ---
+  function isRunnableWebCode(lang, codeText) {
+    if (!codeText || typeof codeText !== 'string') return false;
+    const l = (lang || '').toLowerCase().trim();
+    if (l === 'html' || l === 'htm' || l === 'svg') return true;
+    if (l === 'xml' && /<svg[\s>]/i.test(codeText)) return true;
+    const trimmed = codeText.trim();
+    if (/<!DOCTYPE\s+html/i.test(trimmed)) return true;
+    if (/<html[\s>]/i.test(trimmed) && /<\/html>/i.test(trimmed)) return true;
+    if (/<svg[\s>]/i.test(trimmed) && /<\/svg>/i.test(trimmed)) return true;
+    return false;
+  }
+
+  function prepareExecutableHtml(code, lang) {
+    if (!code) return '';
+    const l = (lang || '').toLowerCase().trim();
+    const trimmed = code.trim();
+    if (l === 'svg' || (/^<svg[\s>]/i.test(trimmed) && !/<!DOCTYPE/i.test(trimmed) && !/<html/i.test(trimmed))) {
+      return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omni SVG Preview</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 2rem;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f1117;
+      box-sizing: border-box;
+    }
+    svg {
+      max-width: 100%;
+      max-height: 90vh;
+      height: auto;
+      filter: drop-shadow(0 10px 25px rgba(0,0,0,0.5));
+    }
+  </style>
+</head>
+<body>
+  ${trimmed}
+</body>
+</html>`;
+    }
+
+    let processed = trimmed;
+    if (!/<meta[^>]+viewport/i.test(processed)) {
+      if (/<head[\s>]/i.test(processed)) {
+        processed = processed.replace(/<head[\s>]/i, '$&\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">');
+      } else if (/<html[\s>]/i.test(processed)) {
+        processed = processed.replace(/<html[\s>]/i, '$&\n<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>');
+      }
+    }
+    return processed;
+  }
+
+  function openArtifact(title, code, lang) {
+    if (!artifactsPane || !artifactsSandboxFrame) return;
+    currentArtifact = {
+      title: title || 'Interactive Web Application',
+      code: code,
+      lang: lang || 'html',
+      publishedUrl: null
+    };
+
+    if (artifactsTitle) {
+      artifactsTitle.textContent = currentArtifact.title;
+    }
+    if (artifactsPublishedBanner) {
+      artifactsPublishedBanner.style.display = 'none';
+    }
+
+    artifactsPane.style.display = 'flex';
+    if (mainChat) {
+      mainChat.classList.add('has-artifact-open');
+    }
+
+    const execHtml = prepareExecutableHtml(code, lang);
+    artifactsSandboxFrame.srcdoc = execHtml;
+  }
+
+  function closeArtifact() {
+    if (!artifactsPane) return;
+    artifactsPane.style.display = 'none';
+    if (mainChat) {
+      mainChat.classList.remove('has-artifact-open');
+    }
+    if (artifactsSandboxFrame) {
+      artifactsSandboxFrame.srcdoc = '';
+    }
+    currentArtifact = { title: '', code: '', lang: '', publishedUrl: null };
+  }
+
+  async function publishCurrentArtifact() {
+    if (!currentArtifact.code) {
+      showToast('No active application to publish.');
+      return;
+    }
+
+    if (typeof puter === 'undefined') {
+      showToast('Puter SDK not loaded');
+      return;
+    }
+
+    try {
+      if (!puter.auth.isSignedIn()) {
+        showToast('Please sign in with Puter to publish your app.');
+        const signedIn = await puter.auth.signIn();
+        if (!signedIn || !puter.auth.isSignedIn()) {
+          showToast('Publishing cancelled (sign-in required).');
+          return;
+        }
+      }
+
+      const origBtnHtml = btnPublishArtifact.innerHTML;
+      btnPublishArtifact.disabled = true;
+      btnPublishArtifact.innerHTML = `<span class="spinner-small" style="width:12px;height:12px;display:inline-block;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span> Publishing...`;
+
+      showToast('Publishing live app to Puter Cloud hosting...');
+
+      const baseSlug = (currentArtifact.title || 'omni-app')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 16) || 'app';
+      const randomSuffix = Math.random().toString(36).substring(2, 6);
+      const subdomain = `${baseSlug}-${randomSuffix}`;
+      const dirPath = `hosted_apps/${subdomain}`;
+
+      await puter.fs.mkdir(dirPath, { createMissingParents: true });
+      const htmlContent = prepareExecutableHtml(currentArtifact.code, currentArtifact.lang);
+      await puter.fs.write(`${dirPath}/index.html`, htmlContent);
+
+      const site = await puter.hosting.create(subdomain, dirPath);
+      const publishedUrl = site && site.subdomain
+        ? `https://${site.subdomain}.puter.site`
+        : `https://${subdomain}.puter.site`;
+
+      currentArtifact.publishedUrl = publishedUrl;
+
+      if (artifactsPublishedBanner && artifactsPublishedLink) {
+        artifactsPublishedLink.href = publishedUrl;
+        artifactsPublishedLink.textContent = publishedUrl;
+        artifactsPublishedBanner.style.display = 'flex';
+      }
+
+      showToast(`🎉 App live at ${publishedUrl}!`, 5000);
+
+      btnPublishArtifact.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Published`;
+      setTimeout(() => {
+        btnPublishArtifact.disabled = false;
+        btnPublishArtifact.innerHTML = origBtnHtml;
+      }, 3000);
+    } catch (err) {
+      console.error('Failed to publish artifact:', err);
+      showToast('Failed to publish app: ' + (err.message || 'Unknown error'));
+      btnPublishArtifact.disabled = false;
+      btnPublishArtifact.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        <span>Publish App</span>
+      `;
+    }
+  }
+
+  // ==========================================================================
+  // Pillar 2 & 3: Plugins Engine & Custom AI Apps Catalog
+  // ==========================================================================
+
+  const COMMUNITY_APPS = [
+    {
+      id: 'app-web-architect',
+      name: 'Full-Stack Web App Architect',
+      icon: '🚀',
+      category: 'coding',
+      desc: 'Builds interactive single-file HTML/CSS/JS apps, web games, dashboards, and tools ready for split-screen live preview and 1-click Puter hosting.',
+      model: 'claude-sonnet-5',
+      intent: 'You are a principal frontend engineer and UI/UX designer. When the user asks for a feature, calculator, game, or tool, always write a complete, standalone, interactive single-file HTML document with embedded CSS and modern JavaScript.',
+      context: 'Modern web standards, responsive design, beautiful CSS gradients, intuitive user controls.',
+      output: 'Always deliver a single contiguous ```html code block containing <!DOCTYPE html>, complete <style>, and vanilla JS. Ensure the application is visually polished, reactive, and fully playable or interactive.',
+      formFields: [
+        { label: 'App or Game Concept', placeholder: 'e.g. Retro Space Invaders arcade game, Pomodoro timer with sound, Financial Compound Interest calculator', type: 'text' },
+        { label: 'Key Features / Theme', placeholder: 'e.g. Dark neon aesthetic, sound effects, local storage high scores', type: 'text' }
+      ]
+    },
+    {
+      id: 'app-data-analyst',
+      name: 'Financial & Data Analyst',
+      icon: '📊',
+      category: 'analysis',
+      desc: 'Performs quantitative financial modeling, ROI calculations, statistical distributions, and algorithmic projections with executable JavaScript.',
+      model: 'gemini-2.5-pro',
+      intent: 'You are a quantitative financial analyst and data scientist. Provide structured, mathematically rigorous models, ROI analyses, and data calculations.',
+      context: 'Corporate finance, unit economics, statistical analysis, mathematical modeling.',
+      output: 'Show assumptions clearly, provide key summary metrics in tables, and include executable JavaScript code calculations where appropriate.',
+      formFields: [
+        { label: 'Dataset or Financial Scenario', placeholder: 'e.g. SaaS metrics with $50k MRR, 5% monthly churn, $250 CAC', type: 'textarea' },
+        { label: 'Core Analysis Goal', placeholder: 'e.g. Forecast 24-month ARR, runway, and break-even point', type: 'text' }
+      ]
+    },
+    {
+      id: 'app-doc-architect',
+      name: 'Document & Proposal Architect',
+      icon: '📄',
+      category: 'writing',
+      desc: 'Drafts formal executive summaries, consulting proposals, client invoices, and business reports formatted for 1-click PDF and Word export.',
+      model: 'gpt-4o',
+      intent: 'You are an executive proposal consultant and technical writer. Draft formal, compelling, high-converting client proposals, contracts, and business reports.',
+      context: 'Enterprise RFP responses, consulting statements of work, executive summaries, pricing tables.',
+      output: 'Use clean Markdown headers (# ## ###), structured executive summaries, deliverables tables, and timeline phases. Ready for instant PDF/DOCX generation.',
+      formFields: [
+        { label: 'Document Type', placeholder: 'e.g. Enterprise Consulting Proposal, Statement of Work (SOW), Project Spec', type: 'text' },
+        { label: 'Client / Target Audience', placeholder: 'e.g. Fortune 500 VP of Engineering, SMB Retail Chain Owner', type: 'text' },
+        { label: 'Project Scope & Deliverables', placeholder: 'e.g. Cloud migration, 3-month timeline, $45,000 fixed price', type: 'textarea' }
+      ]
+    },
+    {
+      id: 'app-deep-researcher',
+      name: 'Fact-Checking Deep Researcher',
+      icon: '🔍',
+      category: 'research',
+      desc: 'Conducts grounded research on current events, tech developments, and market trends using real-time web search and verified citations.',
+      model: 'gemini-2.5-flash',
+      intent: 'You are an investigative tech researcher and fact-checker. Provide rigorous, objective, citation-backed deep dives into current technologies and trends.',
+      context: 'Academic standards, scientific rigor, cross-referencing claims, neutral balanced perspective.',
+      output: 'Synthesize findings with clear section headers, key takeaways, and numbered citations referencing verified sources.',
+      formFields: [
+        { label: 'Research Subject or Question', placeholder: 'e.g. Breakthroughs in solid-state battery commercialization', type: 'text' },
+        { label: 'Specific Focus Areas', placeholder: 'e.g. Leading manufacturers, energy density vs lithium-ion, 2026-2030 timeline', type: 'textarea' }
+      ]
+    },
+    {
+      id: 'app-socratic-tutor',
+      name: 'Socratic Learning Tutor',
+      icon: '🎓',
+      category: 'research',
+      desc: 'Master complex subjects from first principles. Instead of lecturing, guides you with targeted questions and vivid mental models.',
+      model: 'claude-sonnet-5',
+      intent: 'You are an elite private tutor utilizing the Socratic method. Guide the student to discover principles themselves through thought-provoking questions, real-world analogies, and step-by-step reasoning.',
+      context: 'Cognitive science, pedagogical best practices, first-principles thinking.',
+      output: 'Never dump answers all at once. Present clear intuition, ask one focused check-for-understanding question, and wait for the user to respond.',
+      formFields: [
+        { label: 'Topic or Concept to Master', placeholder: 'e.g. Eigenvectors & Eigenvalues, Neural Network Backpropagation, General Relativity', type: 'text' },
+        { label: 'Current Level & Background', placeholder: 'e.g. College sophomore in engineering, Beginner programmer', type: 'text' }
+      ]
+    },
+    {
+      id: 'app-regex-specialist',
+      name: 'Regex, SQL & Algorithm Specialist',
+      icon: '🛠️',
+      category: 'coding',
+      desc: 'Designs optimized regular expressions, SQL queries with indexing strategies, and algorithmic functions with benchmark calculations.',
+      model: 'gpt-4o',
+      intent: 'You are a database architect and algorithmic optimization expert. Write battle-tested regex patterns, optimal SQL queries, and clean algorithms.',
+      context: 'PostgreSQL, MySQL, SQLite, modern ECMAScript/PCRE regex engines, Big-O computational complexity.',
+      output: 'Provide the exact solution, a detailed breakdown of how each clause/token works, edge cases handled, and performance characteristics.',
+      formFields: [
+        { label: 'Problem Statement or Query Goal', placeholder: 'e.g. Match nested ISO-8601 dates with timezone offsets, Find top 3 customers per category in SQL', type: 'textarea' },
+        { label: 'Engine / Dialect', placeholder: 'e.g. PostgreSQL 16, JavaScript PCRE, Python re', type: 'text' }
+      ]
+    }
+  ];
+
+  // --- Plugins State Management ---
+  function loadPluginsState() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_PLUGINS);
+      if (saved) {
+        pluginsState = Object.assign(pluginsState, JSON.parse(saved));
+      }
+    } catch (_) {}
+    updatePluginsUI();
+  }
+
+  function savePluginsState() {
+    try {
+      localStorage.setItem(STORAGE_KEY_PLUGINS, JSON.stringify(pluginsState));
+    } catch (_) {}
+    updatePluginsUI();
+  }
+
+  function updatePluginsUI() {
+    // Web Search
+    if (pillToolSearch) {
+      pillToolSearch.classList.toggle('active', !!pluginsState.webSearch);
+      const status = pillToolSearch.querySelector('.tool-pill-status');
+      if (status) status.textContent = pluginsState.webSearch ? 'ON' : 'OFF';
+    }
+    if (toolToggleSearch) {
+      if (toolBadgeSearch) toolBadgeSearch.style.display = pluginsState.webSearch ? 'inline-flex' : 'none';
+    }
+    if (togglePluginSearch) {
+      togglePluginSearch.checked = !!pluginsState.webSearch;
+    }
+    if (badgePluginSearchStatus) {
+      badgePluginSearchStatus.textContent = pluginsState.webSearch ? 'Active' : 'Inactive';
+      badgePluginSearchStatus.style.background = pluginsState.webSearch ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)';
+      badgePluginSearchStatus.style.color = pluginsState.webSearch ? 'var(--success-color, #10b981)' : 'var(--text-muted)';
+    }
+
+    // Code Runner
+    if (pillToolCode) {
+      pillToolCode.classList.toggle('active', !!pluginsState.codeRunner);
+      const status = pillToolCode.querySelector('.tool-pill-status');
+      if (status) status.textContent = pluginsState.codeRunner ? 'ON' : 'OFF';
+    }
+    if (toolToggleCode) {
+      if (toolBadgeCode) toolBadgeCode.style.display = pluginsState.codeRunner ? 'inline-flex' : 'none';
+    }
+    if (togglePluginCode) {
+      togglePluginCode.checked = !!pluginsState.codeRunner;
+    }
+    if (badgePluginCodeStatus) {
+      badgePluginCodeStatus.textContent = pluginsState.codeRunner ? 'Active' : 'Inactive';
+      badgePluginCodeStatus.style.background = pluginsState.codeRunner ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)';
+      badgePluginCodeStatus.style.color = pluginsState.codeRunner ? 'var(--success-color, #10b981)' : 'var(--text-muted)';
+    }
+  }
+
+  function toggleWebSearch() {
+    pluginsState.webSearch = !pluginsState.webSearch;
+    savePluginsState();
+    showToast(pluginsState.webSearch ? '🌐 Live Web Search Grounding enabled' : 'Web Search disabled');
+  }
+
+  function toggleCodeRunner() {
+    pluginsState.codeRunner = !pluginsState.codeRunner;
+    savePluginsState();
+    showToast(pluginsState.codeRunner ? '⚡ JS Code Runner enabled' : 'Code Runner disabled');
+  }
+
+  // --- Live Web Search Tool Execution ---
+  function detectSearchIntent(text) {
+    if (!text || typeof text !== 'string') return false;
+    const t = text.toLowerCase();
+    const triggers = [
+      'search for', 'latest news', 'current price', 'today news',
+      'who won', 'stock price', 'weather in', 'recent update',
+      'current events', 'what happened to', 'what is the latest'
+    ];
+    return triggers.some(tr => t.includes(tr));
+  }
+
+  async function fetchLiveWebSearchResults(query) {
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return [];
+
+    // Attempt 1: Call /api/search on Cloudflare Worker
+    try {
+      const resp = await fetch('/api/search?q=' + encodeURIComponent(cleanQuery));
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && Array.isArray(data.results) && data.results.length > 0) {
+          return data.results;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend /api/search unreachable, attempting client fallback...', e);
+    }
+
+    // Attempt 2: If puter.net.fetch is available (CORS-free client fetch)
+    if (typeof puter !== 'undefined' && puter.net && typeof puter.net.fetch === 'function') {
+      try {
+        const ddgResp = await puter.net.fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(cleanQuery), {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        const html = await ddgResp.text();
+        const results = [];
+        const regex = /<h2 class="result__title">[\s\S]*?<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+        let match;
+        while ((match = regex.exec(html)) !== null && results.length < 5) {
+          const rawHref = match[1];
+          let actualUrl = rawHref;
+          if (rawHref.includes('uddg=')) {
+            const parts = rawHref.split('uddg=');
+            if (parts[1]) actualUrl = decodeURIComponent(parts[1].split('&')[0]);
+          }
+          const title = match[2].replace(/<[^>]+>/g, '').trim();
+          const snippet = match[3].replace(/<[^>]+>/g, '').trim();
+          let domain = '';
+          try { domain = new URL(actualUrl).hostname; } catch (_) {}
+          results.push({ title, snippet, url: actualUrl, domain });
+        }
+        if (results.length > 0) return results;
+      } catch (err) {
+        console.warn('Puter client DDG fetch error:', err);
+      }
+    }
+
+    // Attempt 3: Wikipedia public search API (CORS friendly)
+    try {
+      const wikiResp = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(cleanQuery)}&limit=4&namespace=0&format=json&origin=*`);
+      if (wikiResp.ok) {
+        const wikiData = await wikiResp.json();
+        const titles = wikiData[1] || [];
+        const snippets = wikiData[2] || [];
+        const urls = wikiData[3] || [];
+        const results = [];
+        for (let i = 0; i < titles.length; i++) {
+          results.push({
+            title: titles[i],
+            snippet: snippets[i] || titles[i],
+            url: urls[i],
+            domain: 'en.wikipedia.org'
+          });
+        }
+        if (results.length > 0) return results;
+      }
+    } catch (wikiErr) {
+      console.warn('Wikipedia fallback search error:', wikiErr);
+    }
+
+    return [];
+  }
+
+  function createSearchSourcesCard(sources, query) {
+    const card = document.createElement('div');
+    card.className = 'tool-call-card tool-search-card';
+    card.innerHTML = `
+      <div class="tool-call-header">
+        <div class="tool-call-header-left">
+          <span class="tool-call-icon">🌐</span>
+          <span class="tool-call-title">Web Search: <strong>${escapeHtml(query || 'Verified Sources')}</strong></span>
+        </div>
+        <span class="tool-call-badge">✓ ${sources.length} sources grounded</span>
+      </div>
+      <div class="tool-sources-list">
+        ${sources.map(s => `
+          <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer" class="tool-source-chip" title="${escapeHtml(s.snippet || s.title)}">
+            <span class="source-chip-domain">${escapeHtml(s.domain || 'WEB')}</span>
+            <span class="source-chip-title">${escapeHtml(s.title)}</span>
+          </a>
+        `).join('')}
+      </div>
+    `;
+    return card;
+  }
+
+  // --- JavaScript Code Runner Client Sandbox ---
+  function executeClientSideJs(code, targetWrapper) {
+    const existingOutput = targetWrapper.querySelector('.tool-code-card');
+    if (existingOutput) existingOutput.remove();
+
+    const startTime = performance.now();
+    let logs = [];
+    let result = undefined;
+    let error = null;
+
+    try {
+      const customConsole = {
+        log: (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+        info: (...args) => logs.push('[info] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+        warn: (...args) => logs.push('[warn] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+        error: (...args) => logs.push('[error] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' '))
+      };
+
+      const wrapped = new Function('console', `
+        "use strict";
+        ${code}
+      `);
+      result = wrapped(customConsole);
+    } catch (err) {
+      error = err.message || String(err);
+    }
+
+    const duration = Math.round(performance.now() - startTime);
+
+    const card = document.createElement('div');
+    card.className = 'tool-call-card tool-code-card';
+    card.innerHTML = `
+      <div class="tool-call-header">
+        <div class="tool-call-header-left">
+          <span class="tool-call-icon">⚡</span>
+          <span class="tool-call-title">Code Execution Result</span>
+        </div>
+        <span class="tool-call-badge ${error ? 'badge-error' : ''}">${error ? 'Error' : 'Success'} • ${duration}ms</span>
+      </div>
+      <div class="tool-code-body">
+        ${logs.length > 0 ? `
+          <div class="tool-code-logs">
+            <span class="tool-code-label">Console Output</span>
+            <pre>${escapeHtml(logs.join('\n'))}</pre>
+          </div>
+        ` : ''}
+        ${result !== undefined ? `
+          <div class="tool-code-result" style="margin-top: ${logs.length > 0 ? '0.5rem' : '0'};">
+            <span class="tool-code-label">Return Value</span>
+            <code>${escapeHtml(typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result))}</code>
+          </div>
+        ` : ''}
+        ${error ? `
+          <div class="tool-code-error">
+            <span class="tool-code-label">Execution Exception</span>
+            <span>${escapeHtml(error)}</span>
+          </div>
+        ` : ''}
+        ${logs.length === 0 && result === undefined && !error ? `
+          <div style="color: #8b949e; font-style: italic;">Code executed cleanly with no return value.</div>
+        ` : ''}
+      </div>
+    `;
+
+    targetWrapper.appendChild(card);
+    showToast('Executed in ' + duration + 'ms');
+  }
+
+  // --- Explore Community Apps Catalog Functions ---
+  function initExploreAppsModal() {
+    renderExploreAppsGrid('all', '');
+
+    if (btnExploreApps) {
+      btnExploreApps.addEventListener('click', () => {
+        openModal(exploreAppsModal);
+      });
+    }
+
+    if (btnCloseExploreAppsModal) {
+      btnCloseExploreAppsModal.addEventListener('click', () => {
+        closeModal(exploreAppsModal);
+      });
+    }
+
+    if (btnCancelExploreAppsModal) {
+      btnCancelExploreAppsModal.addEventListener('click', () => {
+        closeModal(exploreAppsModal);
+      });
+    }
+
+    if (exploreAppsSearch) {
+      exploreAppsSearch.addEventListener('input', () => {
+        const activeCat = exploreCategoryPills?.querySelector('.explore-cat-pill.active')?.getAttribute('data-cat') || 'all';
+        renderExploreAppsGrid(activeCat, exploreAppsSearch.value.trim());
+      });
+    }
+
+    if (exploreCategoryPills) {
+      exploreCategoryPills.addEventListener('click', (e) => {
+        const pill = e.target.closest('.explore-cat-pill');
+        if (!pill) return;
+        exploreCategoryPills.querySelectorAll('.explore-cat-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const cat = pill.getAttribute('data-cat') || 'all';
+        renderExploreAppsGrid(cat, exploreAppsSearch?.value.trim() || '');
+      });
+    }
+  }
+
+  function renderExploreAppsGrid(category = 'all', searchQuery = '') {
+    if (!exploreAppsGrid) return;
+    const q = searchQuery.toLowerCase();
+    const filtered = COMMUNITY_APPS.filter(app => {
+      const matchesCat = category === 'all' || app.category === category;
+      const matchesQuery = !q || app.name.toLowerCase().includes(q) || app.desc.toLowerCase().includes(q);
+      return matchesCat && matchesQuery;
+    });
+
+    if (filtered.length === 0) {
+      exploreAppsGrid.innerHTML = `
+        <div style="grid-column: 1/-1; padding: 2rem; text-align: center; color: var(--text-muted);">
+          No custom apps found matching "${escapeHtml(searchQuery)}".
+        </div>
+      `;
+      return;
+    }
+
+    exploreAppsGrid.innerHTML = filtered.map(app => `
+      <div class="explore-app-card" data-app-id="${escapeHtml(app.id)}">
+        <div class="explore-app-top">
+          <div class="explore-app-icon">${app.icon}</div>
+          <div class="explore-app-details">
+            <span class="explore-app-category">${escapeHtml(app.category)}</span>
+            <div class="explore-app-name">${escapeHtml(app.name)}</div>
+          </div>
+        </div>
+        <p class="explore-app-desc">${escapeHtml(app.desc)}</p>
+        <div class="explore-app-actions">
+          <button type="button" class="btn-secondary btn-sm btn-save-app" data-id="${escapeHtml(app.id)}">
+            + Save to My Apps
+          </button>
+          <button type="button" class="btn-primary btn-sm btn-launch-app" data-id="${escapeHtml(app.id)}">
+            Launch App
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    exploreAppsGrid.querySelectorAll('.btn-launch-app').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const appId = btn.getAttribute('data-id');
+        const found = COMMUNITY_APPS.find(a => a.id === appId);
+        if (found) {
+          launchCustomApp(found);
+          closeModal(exploreAppsModal);
+        }
+      });
+    });
+
+    exploreAppsGrid.querySelectorAll('.btn-save-app').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const appId = btn.getAttribute('data-id');
+        const found = COMMUNITY_APPS.find(a => a.id === appId);
+        if (found) {
+          await cloneCommunityAppToUserProjects(found);
+          btn.textContent = '✓ Saved';
+          btn.disabled = true;
+        }
+      });
+    });
+  }
+
+  async function cloneCommunityAppToUserProjects(app) {
+    const existing = projects.find(p => p.id === app.id);
+    if (existing) {
+      showToast(`"${app.name}" is already in your apps!`);
+      return;
+    }
+    const newProj = {
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      desc: app.desc,
+      model: app.model,
+      intent: app.intent,
+      context: app.context,
+      output: app.output,
+      files: [],
+      formFields: app.formFields || [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    projects.push(newProj);
+    await persistProjects();
+    renderProjectsList();
+    showToast(`Added "${app.name}" to your Custom Apps!`);
+  }
+
+  function launchCustomApp(app) {
+    let proj = projects.find(p => p.id === app.id);
+    if (!proj) {
+      proj = {
+        id: app.id,
+        name: app.name,
+        icon: app.icon,
+        desc: app.desc,
+        model: app.model,
+        intent: app.intent,
+        context: app.context,
+        output: app.output,
+        files: [],
+        formFields: app.formFields || [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      projects.push(proj);
+      persistProjects();
+      renderProjectsList();
+    }
+    selectProject(proj.id);
+  }
+
+  function handleUrlAppRouting() {
+    const params = new URLSearchParams(window.location.search);
+    const appId = params.get('app') || params.get('project');
+    if (appId) {
+      const userProj = projects.find(p => p.id === appId);
+      if (userProj) {
+        selectProject(userProj.id);
+        showToast(`Loaded app: ${userProj.name}`);
+        return;
+      }
+      const commApp = COMMUNITY_APPS.find(a => a.id === appId);
+      if (commApp) {
+        launchCustomApp(commApp);
+        showToast(`Loaded community app: ${commApp.name}`);
+      }
+    }
+  }
+
+  // --- Studio App Form Field Builder ---
+  function renderAppFormFieldsBuilder() {
+    if (!appFormFieldsBuilder) return;
+    if (editingProjectFormFields.length === 0) {
+      appFormFieldsBuilder.innerHTML = `
+        <div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; padding: 0.5rem 0;">
+          No custom inputs defined. The app will launch with a standard conversational welcome screen. Click "+ Add Input Field" above to create guided fields.
+        </div>
+      `;
+      return;
+    }
+
+    appFormFieldsBuilder.innerHTML = editingProjectFormFields.map((field, idx) => `
+      <div class="app-form-field-row" data-index="${idx}">
+        <input type="text" class="form-input form-field-label-input" placeholder="Field Label (e.g. Topic, Audience)" value="${escapeHtml(field.label || '')}">
+        <input type="text" class="form-input form-field-ph-input" placeholder="Placeholder Hint" value="${escapeHtml(field.placeholder || '')}">
+        <select class="form-select form-field-type-select" style="width: 100px;">
+          <option value="text" ${field.type === 'text' ? 'selected' : ''}>Text</option>
+          <option value="textarea" ${field.type === 'textarea' ? 'selected' : ''}>Textarea</option>
+        </select>
+        <button type="button" class="icon-btn-sm btn-delete-form-field" data-index="${idx}" title="Delete field">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    `).join('');
+
+    appFormFieldsBuilder.querySelectorAll('.form-field-label-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.closest('.app-form-field-row').getAttribute('data-index'), 10);
+        if (editingProjectFormFields[idx]) editingProjectFormFields[idx].label = e.target.value;
+      });
+    });
+
+    appFormFieldsBuilder.querySelectorAll('.form-field-ph-input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.closest('.app-form-field-row').getAttribute('data-index'), 10);
+        if (editingProjectFormFields[idx]) editingProjectFormFields[idx].placeholder = e.target.value;
+      });
+    });
+
+    appFormFieldsBuilder.querySelectorAll('.form-field-type-select').forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.closest('.app-form-field-row').getAttribute('data-index'), 10);
+        if (editingProjectFormFields[idx]) editingProjectFormFields[idx].type = e.target.value;
+      });
+    });
+
+    appFormFieldsBuilder.querySelectorAll('.btn-delete-form-field').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-index'), 10);
+        editingProjectFormFields.splice(idx, 1);
+        renderAppFormFieldsBuilder();
+      });
+    });
+  }
+
   function attachCodeCopyHandlers(parentElement) {
     const codeBlocks = parentElement.querySelectorAll('pre');
     codeBlocks.forEach(pre => {
@@ -2866,6 +3727,7 @@
       const codeEl = pre.querySelector('code');
       const langClass = Array.from(codeEl?.classList || []).find(c => c.startsWith('language-'));
       const lang = langClass ? langClass.replace('language-', '') : 'code';
+      const codeText = codeEl ? codeEl.innerText : pre.innerText;
 
       const wrapper = document.createElement('div');
       wrapper.className = 'code-block-wrapper';
@@ -2874,15 +3736,17 @@
       header.className = 'code-header';
       header.innerHTML = `
         <span>${escapeHtml(lang)}</span>
-        <button class="btn-copy-code">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Copy
-        </button>
+        <div class="code-header-actions" style="display:flex;align-items:center;gap:0.4rem;">
+          <button class="btn-copy-code" type="button">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+        </div>
       `;
 
       header.querySelector('.btn-copy-code').addEventListener('click', function () {
-        const codeText = codeEl ? codeEl.innerText : pre.innerText;
-        navigator.clipboard.writeText(codeText);
+        const text = codeEl ? codeEl.innerText : pre.innerText;
+        navigator.clipboard.writeText(text);
         this.innerHTML = '✓ Copied!';
         setTimeout(() => {
           this.innerHTML = `
@@ -2892,9 +3756,72 @@
         }, 2000);
       });
 
+      const isRunnable = isRunnableWebCode(lang, codeText);
+      if (isRunnable) {
+        const headerActions = header.querySelector('.code-header-actions');
+        const btnRun = document.createElement('button');
+        btnRun.className = 'btn-run-artifact';
+        btnRun.type = 'button';
+        btnRun.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Run App
+        `;
+        btnRun.title = 'Run / Preview in interactive sandbox';
+        btnRun.addEventListener('click', () => {
+          const currentText = codeEl ? codeEl.innerText : pre.innerText;
+          openArtifact((lang === 'svg' ? 'Interactive SVG' : 'Interactive Web App'), currentText, lang);
+        });
+        if (headerActions) {
+          headerActions.insertBefore(btnRun, headerActions.firstChild);
+        }
+      }
+
+      // JavaScript Code Runner Inline Execution
+      if (lang === 'javascript' || lang === 'js') {
+        const headerActions = header.querySelector('.code-header-actions');
+        const btnRunCode = document.createElement('button');
+        btnRunCode.className = 'btn-run-artifact';
+        btnRunCode.type = 'button';
+        btnRunCode.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Run JS
+        `;
+        btnRunCode.title = 'Execute JavaScript in client sandbox';
+        btnRunCode.addEventListener('click', () => {
+          const currentText = codeEl ? codeEl.innerText : pre.innerText;
+          executeClientSideJs(currentText, wrapper);
+        });
+        if (headerActions) {
+          headerActions.insertBefore(btnRunCode, headerActions.firstChild);
+        }
+      }
+
       pre.parentNode.insertBefore(wrapper, pre);
       wrapper.appendChild(header);
       wrapper.appendChild(pre);
+
+      if (isRunnable) {
+        const launchCard = document.createElement('div');
+        launchCard.className = 'artifact-launch-card';
+        launchCard.innerHTML = `
+          <div class="artifact-launch-info">
+            <span class="artifact-launch-icon">🚀</span>
+            <div>
+              <span class="artifact-launch-title">Interactive Application Ready</span>
+              <span class="artifact-launch-sub">Run and test this ${escapeHtml(lang.toUpperCase())} application live in the sandbox</span>
+            </div>
+          </div>
+          <button class="btn-primary btn-sm btn-open-card-artifact" type="button">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Preview App
+          </button>
+        `;
+        launchCard.querySelector('.btn-open-card-artifact').addEventListener('click', () => {
+          const currentText = codeEl ? codeEl.innerText : pre.innerText;
+          openArtifact((lang === 'svg' ? 'Interactive SVG' : 'Interactive Web App'), currentText, lang);
+        });
+        wrapper.appendChild(launchCard);
+      }
     });
   }
 
@@ -3781,6 +4708,37 @@
       session = getActiveSession();
     }
 
+    // Direct /run JS Code Execution Command
+    if (/^\/run\s+/i.test(text.trim())) {
+      const codeToRun = text.replace(/^\/run\s+/i, '').trim();
+      const userMsg = {
+        role: 'user',
+        content: text,
+        timestamp: Date.now()
+      };
+      session.messages.push(userMsg);
+      chatTextarea.value = '';
+      chatTextarea.style.height = 'auto';
+      btnSend.disabled = true;
+
+      const assistantMsg = {
+        role: 'assistant',
+        content: `Executed JavaScript code:\n\`\`\`javascript\n${codeToRun}\n\`\`\``,
+        model: settings.selectedModel,
+        timestamp: Date.now()
+      };
+      session.messages.push(assistantMsg);
+      session.updatedAt = Date.now();
+      await persistSessions();
+      renderActiveSession();
+
+      const lastPre = messagesInner.querySelector('.message-wrapper:last-child .code-block-wrapper');
+      if (lastPre) {
+        executeClientSideJs(codeToRun, lastPre);
+      }
+      return;
+    }
+
     if (session.messages.length === 0) {
       if (!session.isRenamed) {
         session.title = text.slice(0, 36) || (currentAttachment ? currentAttachment.name : 'New Conversation');
@@ -3944,6 +4902,44 @@
         systemPromptContent += `\n\n[DOCUMENT DRAFTING DIRECTIVE: The user's goal is to generate/export a ${docIntent.type.toUpperCase()} document. Do NOT output disclaimers saying you cannot create files or download documents. Directly draft the complete, comprehensive, beautifully structured document using clean Markdown (clear headings #/##/###, structured sections, bullet points, and tables where appropriate). The Omni Chat interface will automatically compile your response into a downloadable ${docIntent.type.toUpperCase()} document file for the user.]`;
       }
 
+      // Check if Web Search should be invoked
+      let searchSources = null;
+      let searchQueryUsed = '';
+      const lastUserMsg = [...session.messages].reverse().find(m => m.role === 'user');
+      const userText = lastUserMsg ? lastUserMsg.content : '';
+      const isSearchIntent = pluginsState.webSearch || /^\/search\b/i.test(userText.trim()) || detectSearchIntent(userText);
+
+      if (isSearchIntent && userText.trim()) {
+        searchQueryUsed = userText.replace(/^\/search\s*/i, '').trim();
+        assistantBubble.innerHTML = `
+          <div class="tool-call-card tool-search-card">
+            <div class="tool-call-header">
+              <div class="tool-call-header-left">
+                <span class="tool-call-icon">🌐</span>
+                <span class="tool-call-title">Searching the web for: <strong>${escapeHtml(searchQueryUsed.substring(0, 45))}...</strong></span>
+              </div>
+              <span class="tool-call-badge" style="background:rgba(79,70,229,0.15);color:var(--accent-color);">Searching...</span>
+            </div>
+          </div>
+          <span style="color: var(--text-muted); font-style: italic;">Grounding with verified real-time sources...</span>
+        `;
+        scrollToBottom();
+
+        searchSources = await fetchLiveWebSearchResults(searchQueryUsed);
+
+        if (searchSources && searchSources.length > 0) {
+          systemPromptContent += `\n\n[REAL-TIME VERIFIED WEB SEARCH GROUNDING]\nThe user asked: "${searchQueryUsed}". Here are the latest verified search results:\n`;
+          searchSources.forEach((s, idx) => {
+            systemPromptContent += `[Source ${idx + 1}]: "${s.title}" (${s.url})\nSnippet: ${s.snippet}\n\n`;
+          });
+          systemPromptContent += `Instruction: Ground your response in these verified real-time facts. Cite numbers, names, and sources accurately where relevant.\n`;
+
+          assistantBubble.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Synthesizing answer from grounded sources...</span>';
+        } else {
+          assistantBubble.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Thinking...</span>';
+        }
+      }
+
       const conversationPayload = [
         { role: 'system', content: systemPromptContent }
       ];
@@ -4099,6 +5095,14 @@
           }
         });
         assistantContainer.appendChild(docCard);
+      }
+
+      // Render search sources card if web search was executed
+      if (searchSources && searchSources.length > 0) {
+        assistantMsg.searchSources = searchSources;
+        assistantMsg.searchQuery = searchQueryUsed;
+        const searchCard = createSearchSourcesCard(searchSources, searchQueryUsed);
+        assistantContainer.insertBefore(searchCard, assistantBubble);
       }
 
       // Render clean action buttons
@@ -4595,7 +5599,110 @@
     });
   }
 
-  [modelModal, settingsModal].forEach(modal => {
+  // Artifact Controls Event Listeners
+  if (btnCloseArtifacts) {
+    btnCloseArtifacts.addEventListener('click', closeArtifact);
+  }
+
+  if (btnPublishArtifact) {
+    btnPublishArtifact.addEventListener('click', publishCurrentArtifact);
+  }
+
+  if (btnArtifactReload) {
+    btnArtifactReload.addEventListener('click', () => {
+      if (artifactsSandboxFrame && currentArtifact.code) {
+        artifactsSandboxFrame.srcdoc = prepareExecutableHtml(currentArtifact.code, currentArtifact.lang);
+        showToast('App reloaded');
+      }
+    });
+  }
+
+  if (btnArtifactVpDesktop) {
+    btnArtifactVpDesktop.addEventListener('click', () => {
+      btnArtifactVpDesktop.classList.add('active');
+      if (btnArtifactVpMobile) btnArtifactVpMobile.classList.remove('active');
+      if (artifactsFrameContainer) artifactsFrameContainer.classList.remove('viewport-mobile');
+    });
+  }
+
+  if (btnArtifactVpMobile) {
+    btnArtifactVpMobile.addEventListener('click', () => {
+      btnArtifactVpMobile.classList.add('active');
+      if (btnArtifactVpDesktop) btnArtifactVpDesktop.classList.remove('active');
+      if (artifactsFrameContainer) artifactsFrameContainer.classList.add('viewport-mobile');
+    });
+  }
+
+  if (btnCopyPublishedLink) {
+    btnCopyPublishedLink.addEventListener('click', () => {
+      if (currentArtifact.publishedUrl) {
+        navigator.clipboard.writeText(currentArtifact.publishedUrl);
+        showToast('Live link copied to clipboard!');
+      }
+    });
+  }
+
+  // Custom App Sharing
+  if (btnStudioShare) {
+    btnStudioShare.addEventListener('click', () => {
+      if (editingProjectId) {
+        const shareUrl = `${window.location.origin}${window.location.pathname}?app=${encodeURIComponent(editingProjectId)}`;
+        navigator.clipboard.writeText(shareUrl);
+        showToast('🔗 Custom App link copied to clipboard!');
+      } else {
+        showToast('Please save your app before sharing.');
+      }
+    });
+  }
+
+  // Plugins Controls Event Listeners
+  if (pillToolSearch) pillToolSearch.addEventListener('click', toggleWebSearch);
+  if (toolToggleSearch) {
+    toolToggleSearch.addEventListener('click', () => {
+      toggleWebSearch();
+      closeToolsPopover();
+    });
+  }
+  if (togglePluginSearch) {
+    togglePluginSearch.addEventListener('change', (e) => {
+      pluginsState.webSearch = e.target.checked;
+      savePluginsState();
+    });
+  }
+
+  if (pillToolCode) pillToolCode.addEventListener('click', toggleCodeRunner);
+  if (toolToggleCode) {
+    toolToggleCode.addEventListener('click', () => {
+      toggleCodeRunner();
+      closeToolsPopover();
+    });
+  }
+  if (togglePluginCode) {
+    togglePluginCode.addEventListener('change', (e) => {
+      pluginsState.codeRunner = e.target.checked;
+      savePluginsState();
+    });
+  }
+
+  if (pillManagePlugins) {
+    pillManagePlugins.addEventListener('click', () => openModal(pluginsModal));
+  }
+  if (btnClosePluginsModal) {
+    btnClosePluginsModal.addEventListener('click', () => closeModal(pluginsModal));
+  }
+  if (btnClosePluginsModalFooter) {
+    btnClosePluginsModalFooter.addEventListener('click', () => closeModal(pluginsModal));
+  }
+
+  // Studio Form Field Builder Listener
+  if (btnAddFormField) {
+    btnAddFormField.addEventListener('click', () => {
+      editingProjectFormFields.push({ label: '', placeholder: '', type: 'text' });
+      renderAppFormFieldsBuilder();
+    });
+  }
+
+  [modelModal, settingsModal, pluginsModal, exploreAppsModal].forEach(modal => {
     if (!modal) return;
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
@@ -4604,6 +5711,18 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (artifactsPane && artifactsPane.style.display !== 'none') {
+        closeArtifact();
+        return;
+      }
+      if (pluginsModal && pluginsModal.classList.contains('active')) {
+        closeModal(pluginsModal);
+        return;
+      }
+      if (exploreAppsModal && exploreAppsModal.classList.contains('active')) {
+        closeModal(exploreAppsModal);
+        return;
+      }
       if (projectStudioView && projectStudioView.style.display !== 'none') {
         closeProjectStudio();
         return;
@@ -4628,7 +5747,10 @@
   initModalTabs();
   loadLocalTombstones();
   loadLocalSettings();
+  loadPluginsState();
+  initExploreAppsModal();
   loadSessionsFromLocal();
+  handleUrlAppRouting();
   initPuter();
 
 })();

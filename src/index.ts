@@ -49,6 +49,10 @@ export default {
     }
 
     // API Routes
+    if (url.pathname === "/api/search") {
+      return handleSearchRequest(url);
+    }
+
     if (url.pathname === "/api/chat") {
       // Handle POST requests for chat
       if (request.method === "POST") {
@@ -63,6 +67,88 @@ export default {
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * Handles Live Web Search API requests using DuckDuckGo HTML Lite parser
+ */
+async function handleSearchRequest(url: URL): Promise<Response> {
+  const query = (url.searchParams.get("q") || "").trim();
+  if (!query) {
+    return new Response(JSON.stringify({ query: "", results: [] }), {
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      },
+    });
+  }
+
+  try {
+    const ddgResponse = await fetch(
+      "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query),
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+      },
+    );
+
+    const html = await ddgResponse.text();
+    const results: Array<{ title: string; snippet: string; url: string; domain: string }> = [];
+    const regex =
+      /<h2 class="result__title">[\s\S]*?<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+
+    let match;
+    while ((match = regex.exec(html)) !== null && results.length < 6) {
+      const rawHref = match[1];
+      let actualUrl = rawHref;
+      if (rawHref.includes("uddg=")) {
+        const parts = rawHref.split("uddg=");
+        if (parts[1]) {
+          actualUrl = decodeURIComponent(parts[1].split("&")[0]);
+        }
+      }
+      const title = match[2].replace(/<[^>]+>/g, "").trim();
+      const snippet = match[3].replace(/<[^>]+>/g, "").trim();
+      let domain = "";
+      try {
+        domain = new URL(actualUrl).hostname;
+      } catch (_) {}
+
+      results.push({ title, snippet, url: actualUrl, domain });
+    }
+
+    return new Response(
+      JSON.stringify({
+        query,
+        results,
+        count: results.length,
+      }),
+      {
+        headers: {
+          "content-type": "application/json",
+          "access-control-allow-origin": "*",
+        },
+      },
+    );
+  } catch (error: any) {
+    console.error("Search error:", error);
+    return new Response(
+      JSON.stringify({
+        query,
+        results: [],
+        error: error.message || "Failed to search",
+      }),
+      {
+        status: 500,
+        headers: {
+          "content-type": "application/json",
+          "access-control-allow-origin": "*",
+        },
+      },
+    );
+  }
+}
 
 /**
  * Handles chat API requests

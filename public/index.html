@@ -123,16 +123,21 @@
         </button>
       </div>
 
-      <!-- Custom Projects Section -->
+      <!-- Custom Apps & Projects Section -->
       <div class="projects-section" id="projects-section">
         <div class="projects-section-header">
           <div class="projects-section-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            <span>Projects</span>
+            <span>Custom Apps</span>
           </div>
-          <button class="icon-btn-xs" id="btn-create-project" title="Create New Project" aria-label="Create New Project">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
+          <div class="projects-header-actions" style="display:flex;align-items:center;gap:4px;">
+            <button class="icon-btn-xs" id="btn-explore-apps" title="Explore Community Apps" aria-label="Explore Community Apps">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+            </button>
+            <button class="icon-btn-xs" id="btn-create-project" title="Create Custom App" aria-label="Create Custom App">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
         </div>
         <div class="projects-list" id="projects-list">
           <!-- Dynamically populated projects list -->
@@ -314,6 +319,24 @@
             </div>
           </div>
 
+          <!-- Composer Tools & Plugins Bar -->
+          <div class="composer-tools-bar" id="composer-tools-bar">
+            <button type="button" class="tool-pill" id="pill-tool-search" title="Toggle Real-Time Web Search Grounding">
+              <span class="tool-pill-icon">🌐</span>
+              <span class="tool-pill-label">Web Search</span>
+              <span class="tool-pill-status">OFF</span>
+            </button>
+            <button type="button" class="tool-pill" id="pill-tool-code" title="Toggle In-Browser Code Runner">
+              <span class="tool-pill-icon">⚡</span>
+              <span class="tool-pill-label">Code Runner</span>
+              <span class="tool-pill-status">OFF</span>
+            </button>
+            <button type="button" class="tool-pill tool-pill-manage" id="pill-manage-plugins" title="Configure Plugins & Tools">
+              <span class="tool-pill-icon">🧩</span>
+              <span class="tool-pill-label">Plugins</span>
+            </button>
+          </div>
+
           <div class="input-row">
             <!-- Hidden File Inputs -->
             <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.c,.cpp,.rs,.go" style="display: none;">
@@ -413,6 +436,34 @@
                     <span class="chat-tool-badge" id="tool-badge-music" style="display: none;">Active</span>
                   </button>
                 </div>
+
+                <!-- Pagebreak / Divider -->
+                <div class="chat-tools-divider"></div>
+
+                <!-- Section 3: Plugins & Intelligent Tools -->
+                <div class="chat-tools-group">
+                  <button class="chat-tool-item" id="tool-toggle-search" role="menuitem" type="button">
+                    <span class="chat-tool-icon tool-icon-search">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    </span>
+                    <span class="chat-tool-content">
+                      <span class="chat-tool-title">Web Search Grounding</span>
+                      <span class="chat-tool-desc">Real-time search results & citations</span>
+                    </span>
+                    <span class="chat-tool-badge" id="tool-badge-search" style="display: none;">Active</span>
+                  </button>
+
+                  <button class="chat-tool-item" id="tool-toggle-code" role="menuitem" type="button">
+                    <span class="chat-tool-icon tool-icon-code">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    </span>
+                    <span class="chat-tool-content">
+                      <span class="chat-tool-title">JS Code Runner</span>
+                      <span class="chat-tool-desc">Run math, scripts & algorithms</span>
+                    </span>
+                    <span class="chat-tool-badge" id="tool-badge-code" style="display: none;">Active</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -492,6 +543,10 @@
             <button class="btn-danger-text" id="btn-studio-delete" style="display: none;" title="Delete this project">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               <span>Delete</span>
+            </button>
+            <button class="btn-secondary btn-sm" id="btn-studio-share" style="display: none;" title="Share this custom app via URL link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>Share App</span>
             </button>
             <button class="btn-secondary btn-sm" id="btn-studio-cancel">Cancel</button>
             <button class="btn-primary btn-sm" id="btn-studio-save">
@@ -617,6 +672,22 @@
                 </div>
               </div>
 
+              <!-- Section 4: Guided App Form (Interactive Inputs - Optional) -->
+              <div class="studio-card">
+                <div class="studio-card-header-row">
+                  <h3 class="studio-section-title">
+                    <span class="studio-section-num">4</span>
+                    <span>Guided App Form (Optional)</span>
+                  </h3>
+                  <button type="button" class="btn-text-sm" id="btn-add-form-field">+ Add Input Field</button>
+                </div>
+                <p class="form-hint" style="margin-bottom: 0.75rem;">Define guided input fields for users of this app (e.g., Topic, Target Audience, Tone). When present, a quick generator form appears on the welcome screen.</p>
+
+                <div class="app-form-fields-builder" id="app-form-fields-builder">
+                  <!-- Dynamically populated configured fields -->
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -648,6 +719,64 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Interactive Artifacts & Sandboxed Web Apps Pane (Claude Artifacts style) -->
+      <section class="artifacts-pane" id="artifacts-pane" style="display: none;">
+        <div class="artifacts-header">
+          <div class="artifacts-header-left">
+            <span class="artifacts-header-badge">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              <span>Live App</span>
+            </span>
+            <span class="artifacts-title" id="artifacts-title">Interactive Application</span>
+          </div>
+
+          <div class="artifacts-header-actions">
+            <!-- Viewport Switcher -->
+            <div class="artifacts-viewport-toggle">
+              <button class="artifacts-vp-btn active" id="btn-artifact-vp-desktop" type="button" title="Desktop View (100%)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </button>
+              <button class="artifacts-vp-btn" id="btn-artifact-vp-mobile" type="button" title="Mobile View (375px)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              </button>
+            </div>
+
+            <!-- Reload Iframe -->
+            <button class="icon-btn-sm" id="btn-artifact-reload" type="button" title="Reload App">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </button>
+
+            <!-- 1-Click Puter Hosting / Publish -->
+            <button class="btn-primary btn-sm btn-publish-artifact" id="btn-publish-artifact" type="button" title="Publish live to Puter web hosting">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+              <span>Publish App</span>
+            </button>
+
+            <!-- Close Pane -->
+            <button class="btn-gemini-icon" id="btn-close-artifacts" type="button" title="Close Preview" aria-label="Close Preview">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Published URL Notification Banner (Hidden by default) -->
+        <div class="artifacts-published-banner" id="artifacts-published-banner" style="display: none;">
+          <div class="published-banner-text">
+            <span>🎉 <strong>Live on the Web!</strong></span>
+            <a href="#" id="artifacts-published-link" target="_blank" rel="noopener noreferrer">https://...</a>
+          </div>
+          <button class="icon-btn-sm" id="btn-copy-published-link" type="button" title="Copy URL">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+
+        <div class="artifacts-body" id="artifacts-body">
+          <div class="artifacts-frame-container" id="artifacts-frame-container">
+            <iframe id="artifacts-sandbox-frame" class="artifacts-sandbox-frame" sandbox="allow-scripts allow-forms allow-modals"></iframe>
           </div>
         </div>
       </section>
@@ -852,6 +981,138 @@
           <button class="btn-secondary" id="btn-cancel-settings">Cancel</button>
           <button class="btn-primary" id="btn-save-settings">Save Settings</button>
         </div>
+      </div>
+  <!-- Plugins & Intelligent Tools Modal -->
+  <div class="modal-overlay" id="plugins-modal" style="display: none;">
+    <div class="modal-dialog modal-dialog-md">
+      <div class="modal-header">
+        <div class="modal-title-with-badge" style="display:flex;align-items:center;gap:0.6rem;">
+          <h2 class="modal-title">Intelligent Plugins & Tools</h2>
+          <span class="artifacts-header-badge">Extensible Engine</span>
+        </div>
+        <button class="btn-gemini-icon" id="btn-close-plugins-modal" title="Close" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p class="form-hint" style="margin-bottom: 1.25rem;">Enable autonomous plugins to expand Omni Chat with real-time web capabilities and client-side computation.</p>
+
+        <div class="plugins-list">
+          <!-- Plugin 1: Web Search -->
+          <div class="plugin-card">
+            <div class="plugin-card-left">
+              <span class="plugin-card-icon">🌐</span>
+              <div class="plugin-card-info">
+                <div class="plugin-card-title-row">
+                  <strong>Live Web Search Grounding</strong>
+                  <span class="plugin-badge-active" id="badge-plugin-search-status">Inactive</span>
+                </div>
+                <p class="plugin-card-desc">Grounds AI responses in real-time web facts, recent news, stock data, and clickable citation links via DuckDuckGo.</p>
+              </div>
+            </div>
+            <div class="plugin-card-action">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-plugin-search">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Plugin 2: JS Code Runner -->
+          <div class="plugin-card">
+            <div class="plugin-card-left">
+              <span class="plugin-card-icon">⚡</span>
+              <div class="plugin-card-info">
+                <div class="plugin-card-title-row">
+                  <strong>JavaScript Code Runner</strong>
+                  <span class="plugin-badge-active" id="badge-plugin-code-status">Inactive</span>
+                </div>
+                <p class="plugin-card-desc">Client-side execution sandbox for mathematical formulas, string formatting, algorithms, and data transformation.</p>
+              </div>
+            </div>
+            <div class="plugin-card-action">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-plugin-code">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Plugin 3: Interactive Artifacts -->
+          <div class="plugin-card">
+            <div class="plugin-card-left">
+              <span class="plugin-card-icon">🚀</span>
+              <div class="plugin-card-info">
+                <div class="plugin-card-title-row">
+                  <strong>Live Interactive Artifacts</strong>
+                  <span class="plugin-badge-builtin">Built-in</span>
+                </div>
+                <p class="plugin-card-desc">Detects runnable HTML/JS/SVG applications with live split-screen preview and 1-click Puter Cloud hosting to *.puter.site.</p>
+              </div>
+            </div>
+            <div class="plugin-card-action">
+              <span class="text-muted-sm" style="font-size:0.8rem;color:var(--text-muted);">Always On</span>
+            </div>
+          </div>
+
+          <!-- Plugin 4: External API Connectors -->
+          <div class="plugin-card">
+            <div class="plugin-card-left">
+              <span class="plugin-card-icon">🔌</span>
+              <div class="plugin-card-info">
+                <div class="plugin-card-title-row">
+                  <strong>CORS-Free Network Connector</strong>
+                  <span class="plugin-badge-builtin">Puter.js</span>
+                </div>
+                <p class="plugin-card-desc">Powers direct REST API calls from client without CORS limitations via Puter Network fetch.</p>
+              </div>
+            </div>
+            <div class="plugin-card-action">
+              <span class="text-muted-sm" style="font-size:0.8rem;color:var(--text-muted);">Ready</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;">
+        <button class="btn-primary btn-sm" id="btn-close-plugins-modal-footer">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Explore Community Apps Modal -->
+  <div class="modal-overlay" id="explore-apps-modal" style="display: none;">
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div class="modal-title-with-badge" style="display:flex;align-items:center;gap:0.6rem;">
+          <h2 class="modal-title">Explore Custom AI Apps</h2>
+          <span class="artifacts-header-badge">Frontier Catalog</span>
+        </div>
+        <button class="btn-gemini-icon" id="btn-close-explore-apps-modal" title="Close" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="explore-apps-search-row">
+          <input type="text" class="form-input" id="explore-apps-search" placeholder="Search apps by name, category, or role...">
+          <div class="explore-category-pills" id="explore-category-pills">
+            <button type="button" class="explore-cat-pill active" data-cat="all">All</button>
+            <button type="button" class="explore-cat-pill" data-cat="coding">Coding & Apps</button>
+            <button type="button" class="explore-cat-pill" data-cat="analysis">Analysis & Data</button>
+            <button type="button" class="explore-cat-pill" data-cat="writing">Documents & Writing</button>
+            <button type="button" class="explore-cat-pill" data-cat="research">Research & Learning</button>
+          </div>
+        </div>
+
+        <div class="explore-apps-grid" id="explore-apps-grid">
+          <!-- Populated dynamically with built-in frontier apps -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;">
+        <button class="btn-secondary" id="btn-cancel-explore-apps-modal">Close</button>
       </div>
     </div>
   </div>
