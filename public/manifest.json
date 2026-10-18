@@ -1,17 +1,18 @@
 {
-  "name": "Omni Chat — Universal Chat",
+  "name": "Omni Chat — Universal AI Chat",
   "short_name": "Omni Chat",
-  "description": "Universal AI chat interface with 500+ models powered by Puter.js",
+  "description": "Universal AI chat interface with 500+ models, multimodal creation, and cross-device cloud sync.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#131314",
+  "theme_color": "#131314",
   "icons": [
     {
       "src": "favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }
-

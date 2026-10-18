@@ -544,180 +544,8 @@
     }
   }
 
-  // --- Shared Documents Cross-Device Synchronization ---
-  let sharedDocumentsDirPath = null;
-  function updateCrossSyncUIState(isConnected) {
-    const btnCrossSync = document.getElementById('btn-enable-cross-sync');
-    if (btnCrossSync) {
-      if (isConnected) {
-        btnCrossSync.innerHTML = '<span>✓ Cross-Device Sync Connected</span>';
-        btnCrossSync.className = 'btn-secondary btn-cross-sync-connected';
-        btnCrossSync.title = 'Cross-device storage is connected via Puter Documents. All chats, projects, and username sync across devices.';
-        btnCrossSync.style.color = 'var(--success-color, #10b981)';
-        btnCrossSync.style.borderColor = 'var(--success-color, #10b981)';
-      } else {
-        btnCrossSync.innerHTML = '<span>🌐 Connect Cross-Device Storage</span>';
-        btnCrossSync.className = 'btn-secondary';
-        btnCrossSync.title = 'Share chats between devices via Puter Documents folder';
-        btnCrossSync.style.color = '';
-        btnCrossSync.style.borderColor = '';
-      }
-    }
-  }
+  // --- Puter Cloud Storage & State Sync ---
 
-  async function getSharedDocumentsDir(promptIfMissing = false) {
-    if (typeof puter === 'undefined' || !puter.perms || typeof puter.perms.check !== 'function') {
-      return null;
-    }
-    if (sharedDocumentsDirPath && !promptIfMissing) {
-      return sharedDocumentsDirPath;
-    }
-    try {
-      const hasPerm = await puter.perms.check('folder', { name: 'Documents', access: 'write' });
-      if (hasPerm) {
-        const res = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
-        const path = typeof res === 'string' ? res : (res && (res.path || res.name) ? (res.path || res.name) : 'Documents');
-        sharedDocumentsDirPath = path || 'Documents';
-        updateCrossSyncUIState(true);
-        return sharedDocumentsDirPath;
-      }
-      if (promptIfMissing) {
-        const res = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
-        if (res) {
-          const path = typeof res === 'string' ? res : (res && (res.path || res.name) ? (res.path || res.name) : 'Documents');
-          sharedDocumentsDirPath = path || 'Documents';
-          updateCrossSyncUIState(true);
-          return sharedDocumentsDirPath;
-        }
-      }
-    } catch (e) {
-      console.warn('[Omni Sync] Shared folder perm error:', e);
-    }
-    updateCrossSyncUIState(false);
-    return null;
-  }
-
-  async function readSharedCrossDeviceState() {
-    const docDir = await getSharedDocumentsDir(false);
-    if (!docDir || typeof puter === 'undefined' || !puter.fs) return null;
-
-    const candidatePaths = [
-      `${docDir}/OmniChat/omni_sync_state.json`,
-      `${docDir}/omni_sync_state.json`,
-      `${docDir}/NexusAI/nexus_sync_state.json`,
-      `${docDir}/nexus_sync_state.json`
-    ];
-
-    for (const p of candidatePaths) {
-      try {
-        const blob = await puter.fs.read(p);
-        if (blob) {
-          const txt = await blob.text();
-          if (txt && txt.trim()) {
-            return JSON.parse(txt);
-          }
-        }
-      } catch (e) {}
-    }
-    return null;
-  }
-
-  async function writeSharedCrossDeviceState(forcePrompt = false) {
-    const docDir = await getSharedDocumentsDir(forcePrompt);
-    if (!docDir || typeof puter === 'undefined' || !puter.fs) return false;
-
-    const payload = {
-      version: 1,
-      updatedAt: Date.now(),
-      settings: {
-        displayName: settings.displayName || '',
-        customUsername: settings.customUsername || '',
-        personaPreset: settings.personaPreset,
-        systemPrompt: settings.systemPrompt,
-        temperature: settings.temperature,
-        selectedModel: settings.selectedModel
-      },
-      projects: projects,
-      sessions: sessions,
-      deletedSessionIds: Array.from(deletedSessionIds),
-      deletedProjectIds: Array.from(deletedProjectIds)
-    };
-
-    const jsonStr = JSON.stringify(payload);
-
-    try {
-      if (typeof puter.fs.mkdir === 'function') {
-        try { await puter.fs.mkdir(`${docDir}/OmniChat`); } catch (err) {}
-      }
-      await puter.fs.write(`${docDir}/OmniChat/omni_sync_state.json`, jsonStr);
-      return true;
-    } catch (err) {
-      try {
-        await puter.fs.write(`${docDir}/omni_sync_state.json`, jsonStr);
-        return true;
-      } catch (e2) {
-        console.warn('[Omni Sync] Failed to write shared cross-device state:', e2);
-        return false;
-      }
-    }
-  }
-
-  async function syncAllSharedCrossDevice(promptIfMissing = false) {
-    const sharedData = await (promptIfMissing ? (async () => {
-      const dir = await getSharedDocumentsDir(true);
-      return dir ? await readSharedCrossDeviceState() : null;
-    })() : readSharedCrossDeviceState());
-
-    if (sharedData) {
-      if (sharedData.settings) {
-        if (sharedData.settings.displayName) {
-          settings.displayName = sharedData.settings.displayName;
-        }
-        if (sharedData.settings.customUsername) {
-          settings.customUsername = sharedData.settings.customUsername;
-        }
-        if (sharedData.settings.selectedModel) {
-          settings.selectedModel = sharedData.settings.selectedModel;
-        }
-        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
-        updateModelButtonUI();
-        updateAuthUI();
-      }
-
-      if (Array.isArray(sharedData.deletedSessionIds)) {
-        sharedData.deletedSessionIds.forEach(id => deletedSessionIds.add(id));
-      }
-      if (Array.isArray(sharedData.deletedProjectIds)) {
-        sharedData.deletedProjectIds.forEach(id => deletedProjectIds.add(id));
-      }
-      saveLocalTombstones();
-
-      if (Array.isArray(sharedData.projects)) {
-        projects = mergeProjects(sharedData.projects, projects);
-        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
-        renderProjectsList();
-      }
-
-      if (Array.isArray(sharedData.sessions)) {
-        sessions = mergeSessions(sharedData.sessions, sessions);
-        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
-        renderSessionList();
-        restoreActiveSession();
-      }
-
-      await writeSharedCrossDeviceState(false);
-      updateCrossSyncUIState(true);
-      return true;
-    } else {
-      const docDir = await getSharedDocumentsDir(promptIfMissing);
-      if (docDir) {
-        await writeSharedCrossDeviceState(false);
-        updateCrossSyncUIState(true);
-        return true;
-      }
-    }
-    return false;
-  }
 
   async function readPuterFileOrKV(filePath, kvKey) {
     if (typeof puter !== 'undefined' && puter.fs && typeof puter.fs.read === 'function') {
@@ -771,11 +599,6 @@
       } else {
         console.log(`[Omni Sync] Payload (${jsonStr.length} bytes) exceeds Puter KV limit. Stored safely via puter.fs.`);
       }
-    }
-
-    // Also mirror to shared Documents folder if connected
-    writeSharedCrossDeviceState(false).catch(() => {});
-
     return fsSuccess;
   }
 
@@ -893,10 +716,6 @@
     }
 
     try {
-      // Check if shared cross-device Documents folder is already connected
-      await getSharedDocumentsDir(false);
-      await syncAllSharedCrossDevice(false);
-
       await loadCloudSettings();
       await updateAuthUI();
       fetchPuterModels();
@@ -985,18 +804,12 @@
 
     try {
       if (showFeedback) showToast('Syncing chats with Puter Cloud...');
-      if (!sharedDocumentsDirPath && showFeedback) {
-        await syncAllSharedCrossDevice(true);
-      } else {
-        await syncAllSharedCrossDevice(false);
-      }
       await loadCloudSettings();
       await syncTombstones();
       await loadProjects();
       await loadSessions();
       await persistSessions();
       await persistProjects();
-      await writeSharedCrossDeviceState(false);
       updateAuthUI();
       updateSyncStatusUI('Synced (Puter Cloud)', true);
       if (showFeedback) {
@@ -1022,40 +835,13 @@
     btnManualSync.addEventListener('click', () => manualSyncAll(true));
   }
 
-  const btnEnableCrossSync = document.getElementById('btn-enable-cross-sync');
-  if (btnEnableCrossSync) {
-    btnEnableCrossSync.addEventListener('click', async () => {
-      const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
-      if (!isSignedIn) {
-        showToast('Please sign in with Puter first');
-        return;
-      }
-      btnEnableCrossSync.disabled = true;
-      btnEnableCrossSync.innerHTML = '<span>⏳ Connecting...</span>';
-      try {
-        const success = await syncAllSharedCrossDevice(true);
-        if (success) {
-          updateCrossSyncUIState(true);
-          showToast('✓ Connected to Puter Documents! All chats, projects & usernames now sync across devices.');
-        } else {
-          showToast('Cross-device storage connection cancelled or not granted.');
-        }
-      } catch (err) {
-        showToast('Connection error: ' + (err.message || 'Permission failed'));
-      } finally {
-        btnEnableCrossSync.disabled = false;
-        updateCrossSyncUIState(!!sharedDocumentsDirPath);
-      }
-    });
-  }
-
   // Background Auto-Sync when returning to tab or focus
   let lastBackgroundSyncTime = 0;
   function triggerBackgroundSync() {
     if (Date.now() - lastBackgroundSyncTime < 15000) return; // At most once every 15s
     if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode !== 'local') {
       lastBackgroundSyncTime = Date.now();
-      console.log('[Omni Sync] Window active: checking for updates from other devices...');
+      console.log('[Omni Sync] Window active: checking for updates...');
       manualSyncAll(false);
     }
   }
@@ -1088,6 +874,7 @@
         if (puter.auth.isSignedIn()) {
           const user = await puter.auth.getUser();
           showToast(`Welcome back, ${getEffectiveDisplayName() || user.username || 'friend'}! Syncing...`);
+
           await loadCloudSettings();
           await syncTombstones();
           await loadProjects();
@@ -1095,7 +882,7 @@
           await persistSessions();
           await updateAuthUI();
           updateSyncStatusUI('Synced (Puter Cloud)', true);
-          showToast(`Synced ${sessions.length} conversations across all devices!`);
+          showToast(`Synced ${sessions.length} conversations with Puter Cloud!`);
         }
       } catch (err) {
         console.error('Sign-in failed:', err);
@@ -1497,6 +1284,7 @@
     if (proj) {
       showToast(`Entered project: ${proj.name}`);
     }
+    closeSidebarIfMobile();
   }
 
   function exitProject() {
@@ -1514,6 +1302,7 @@
     renderProjectsList();
     renderSessionList();
     showToast('Exited to standard chats');
+    closeSidebarIfMobile();
   }
 
   function updateTopbarProjectPill() {
@@ -1551,6 +1340,7 @@
     renderActiveSession();
     chatTextarea.focus();
     showToast(`Started new chat in "${proj.name}"`);
+    closeSidebarIfMobile();
   }
 
   function renderProjectsList() {
@@ -1991,10 +1781,10 @@
         if (chunk?.type === 'text' || chunk?.text) {
           accumulated += (chunk.text || '');
           assistantBubble.innerHTML = formatMarkdown(accumulated);
-          attachCodeCopyHandlers(assistantBubble);
           studioPreviewMessages.scrollTop = studioPreviewMessages.scrollHeight;
         }
       }
+      attachCodeCopyHandlers(assistantBubble);
 
       studioPreviewHistory.push({ role: 'assistant', content: accumulated || '(Empty)' });
     } catch (err) {
@@ -2217,6 +2007,7 @@
     renderSessionList();
     renderActiveSession();
     chatTextarea.focus();
+    closeSidebarIfMobile();
   }
 
   function restoreActiveSession() {
@@ -2263,6 +2054,7 @@
     renderProjectsList();
     renderSessionList();
     renderActiveSession();
+    closeSidebarIfMobile();
   }
 
   function deleteSession(id, e) {
@@ -4196,13 +3988,41 @@
 
       let accumulatedText = '';
       let accumulatedReasoning = '';
+      let streamRenderPending = false;
+      let lastStreamRenderTime = 0;
+      const STREAM_RENDER_INTERVAL_MS = 45; // Smooth ~22fps DOM updates to completely eliminate mobile UI blinking
+
+      function flushStreamRender() {
+        streamRenderPending = false;
+        lastStreamRenderTime = performance.now();
+        if (accumulatedText) {
+          assistantBubble.innerHTML = formatMarkdown(accumulatedText);
+        }
+        if (liveReasoningContent && accumulatedReasoning) {
+          liveReasoningContent.textContent = accumulatedReasoning;
+        }
+        scrollToBottom();
+      }
+
+      function scheduleStreamRender() {
+        if (streamRenderPending) return;
+        const now = performance.now();
+        const elapsed = now - lastStreamRenderTime;
+        if (elapsed >= STREAM_RENDER_INTERVAL_MS) {
+          streamRenderPending = true;
+          requestAnimationFrame(flushStreamRender);
+        } else {
+          streamRenderPending = true;
+          setTimeout(() => {
+            requestAnimationFrame(flushStreamRender);
+          }, STREAM_RENDER_INTERVAL_MS - elapsed);
+        }
+      }
 
       for await (const part of responseStream) {
         if (part?.type === 'text' || part?.text) {
           accumulatedText += (part.text || '');
-          assistantBubble.innerHTML = formatMarkdown(accumulatedText);
-          attachCodeCopyHandlers(assistantBubble);
-          scrollToBottom();
+          scheduleStreamRender();
         }
 
         if (part?.type === 'reasoning' || part?.reasoning) {
@@ -4225,8 +4045,7 @@
               assistantContainer.insertBefore(liveReasoningBlock, assistantBubble);
               liveReasoningContent = liveReasoningBlock.querySelector('.reasoning-content');
             }
-            liveReasoningContent.textContent = accumulatedReasoning;
-            scrollToBottom();
+            scheduleStreamRender();
           }
         }
 
@@ -4234,6 +4053,10 @@
           throw new Error(part.message || 'Streaming error');
         }
       }
+
+      // Final synchronous flush and attach code handlers once generation is complete
+      flushStreamRender();
+      attachCodeCopyHandlers(assistantBubble);
 
       if (liveReasoningBlock) {
         liveReasoningBlock.classList.add('collapsed');
@@ -4554,9 +4377,16 @@
   });
 
   chatTextarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    if (e.key === 'Enter') {
+      const isMobile = window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+      if (isMobile) {
+        // On mobile devices, Enter inserts a new line; message is sent via the send button
+        return;
+      }
+      if (!e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
     }
   });
 
@@ -4576,7 +4406,9 @@
     }
   });
 
-  btnScrollBottom.addEventListener('click', scrollToBottom);
+  btnScrollBottom.addEventListener('click', () => {
+    messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
+  });
 
   // --- Gemini Sidebar Toggle Logic ---
   function updateSidebarToggleUI(isClosed) {
@@ -4589,6 +4421,7 @@
 
   function openSidebar() {
     sidebar.classList.remove('closed');
+    sidebar.classList.add('mobile-open');
     updateSidebarToggleUI(false);
     if (window.innerWidth <= 768 && sidebarBackdrop) {
       sidebarBackdrop.classList.add('active');
@@ -4597,14 +4430,25 @@
 
   function closeSidebar() {
     sidebar.classList.add('closed');
+    sidebar.classList.remove('mobile-open');
     updateSidebarToggleUI(true);
     if (sidebarBackdrop) {
       sidebarBackdrop.classList.remove('active');
     }
   }
 
+  function closeSidebarIfMobile() {
+    if (window.innerWidth <= 768) {
+      closeSidebar();
+    }
+  }
+
   function toggleSidebar() {
-    if (sidebar.classList.contains('closed')) {
+    const isMobile = window.innerWidth <= 768;
+    const isClosed = isMobile
+      ? !sidebar.classList.contains('mobile-open')
+      : sidebar.classList.contains('closed');
+    if (isClosed) {
       openSidebar();
     } else {
       closeSidebar();
@@ -4615,9 +4459,13 @@
   if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', closeSidebar);
   if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeSidebar);
 
-  // Sync initial state
+  // Sync initial state: on mobile, start strictly closed; on desktop, honor class
   if (sidebar) {
-    updateSidebarToggleUI(sidebar.classList.contains('closed'));
+    if (window.innerWidth <= 768) {
+      closeSidebar();
+    } else {
+      updateSidebarToggleUI(sidebar.classList.contains('closed'));
+    }
   }
 
   // --- Modal Utilities ---

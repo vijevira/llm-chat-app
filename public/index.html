@@ -3,13 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Omni Chat</title>
+  <title>Omni Chat — Universal AI Chat Interface (500+ Models)</title>
   
-  <!-- Favicon & Metadata -->
+  <!-- Primary SEO Metadata -->
+  <meta name="description" content="Omni Chat is a fast, universal AI chat interface with 500+ LLMs including Gemini 2.5, GPT-4o, Claude 3.5 Sonnet, and DeepSeek R1. Create AI images, videos, music, and sync chats seamlessly across devices.">
+  <meta name="keywords" content="Omni Chat, AI chat, free AI, Gemini 2.5, GPT-4o, Claude 3.5 Sonnet, DeepSeek R1, AI image generator, AI video generator, AI music, Puter AI, LLM chat">
+  <meta name="author" content="Omni Chat">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <link rel="canonical" href="https://omni.endra.in/">
+
+  <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://omni.endra.in/">
+  <meta property="og:title" content="Omni Chat — Universal AI Chat Interface (500+ Models)">
+  <meta property="og:description" content="Access 500+ LLM models including Gemini 2.5, GPT-4o, Claude 3.5, and DeepSeek R1 with native image, video, and audio generation.">
+  <meta property="og:image" content="https://omni.endra.in/og-image.svg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Omni Chat">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter / X Cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://omni.endra.in/">
+  <meta name="twitter:title" content="Omni Chat — Universal AI Chat Interface (500+ Models)">
+  <meta name="twitter:description" content="Access 500+ LLM models including Gemini 2.5, GPT-4o, Claude 3.5, and DeepSeek R1 with native image, video, and audio generation.">
+  <meta name="twitter:image" content="https://omni.endra.in/og-image.svg">
+
+  <!-- Google Rich Results / Schema.org JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Omni Chat",
+    "url": "https://omni.endra.in/",
+    "description": "Universal AI chat interface with access to 500+ foundation models including Google Gemini 2.5, GPT-4o, Claude 3.5 Sonnet, and DeepSeek R1, with native image, video, and audio generation.",
+    "applicationCategory": "ProductivityApplication",
+    "operatingSystem": "All",
+    "browserRequirements": "Requires JavaScript. Requires HTML5.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "500+ AI Models without API keys",
+      "Google Gemini 2.5, GPT-4o, Claude 3.5 Sonnet, DeepSeek R1",
+      "AI Image, Video, and Music Generation",
+      "Custom Workspace Projects with System Instructions",
+      "Cross-device Puter Cloud sync",
+      "Web Speech API Voice Dictation"
+    ]
+  }
+  </script>
+
+  <!-- Favicon & PWA Metadata -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#131314">
-  <meta name="description" content="Omni Chat — Gemini-inspired universal AI chat interface with 500+ models">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   
   <!-- Google Fonts: Google Sans / Inter style -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -651,11 +705,20 @@
         </button>
       </div>
 
-      <!-- Tab Navigation -->
-      <nav class="modal-tabs">
-        <button class="modal-tab-btn active" data-tab="tab-profile">👤 Account & Puter</button>
-        <button class="modal-tab-btn" data-tab="tab-persona">🧠 AI & Persona</button>
-        <button class="modal-tab-btn" data-tab="tab-data">💾 Data & Backup</button>
+      <!-- Segmented Tab Navigation -->
+      <nav class="modal-tabs" id="settings-modal-tabs">
+        <button class="modal-tab-btn active" data-tab="tab-profile">
+          <span class="tab-icon">👤</span>
+          <span class="tab-label">Account</span>
+        </button>
+        <button class="modal-tab-btn" data-tab="tab-persona">
+          <span class="tab-icon">🧠</span>
+          <span class="tab-label">Persona</span>
+        </button>
+        <button class="modal-tab-btn" data-tab="tab-data">
+          <span class="tab-icon">💾</span>
+          <span class="tab-label">Data & Backup</span>
+        </button>
       </nav>
 
       <div class="modal-body">
@@ -687,15 +750,12 @@
             </div>
           </div>
 
-          <div class="sync-actions-row" style="margin-top: 0.75rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-            <button class="btn-secondary" id="btn-manual-sync" type="button" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.4rem 0.85rem;">
+          <div class="sync-actions-row">
+            <button class="btn-secondary" id="btn-manual-sync" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               <span>Sync Cloud Now</span>
             </button>
-            <button class="btn-secondary" id="btn-enable-cross-sync" type="button" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.4rem 0.85rem;" title="Share chats between localhost and server deployments via Puter Documents folder">
-              <span>🌐 Connect Cross-Device Storage</span>
-            </button>
-            <span id="sync-last-time" style="font-size: 0.78rem; color: var(--text-muted);">Auto-sync active</span>
+            <span id="sync-last-time" class="sync-last-time-text">Cloud sync ready</span>
           </div>
 
           <div class="form-group" style="margin-top: 1rem;">
@@ -759,8 +819,8 @@
         <!-- Tab 3: Data & Backup -->
         <div class="tab-content" id="tab-data">
           <div class="form-group">
-            <label class="form-label">Export Chat History</label>
-            <p class="form-hint">Download all your chat conversations as a clean JSON backup file.</p>
+            <label class="form-label">Export Chat History & Workspaces</label>
+            <p class="form-hint">Download all your conversations as a JSON backup. Perfect for safe keeping or migrating chats between domains (e.g. from <code>chat.vijevira.in</code> to <code>omni.endra.in</code>).</p>
             <button class="btn-secondary" id="btn-export-chats" style="align-self: flex-start; margin-top: 0.35rem;">
               📥 Export Chats (JSON)
             </button>
@@ -768,7 +828,7 @@
 
           <div class="form-group" style="margin-top: 0.75rem;">
             <label class="form-label">Import Chat History</label>
-            <p class="form-hint">Restore conversations from a previously exported JSON backup.</p>
+            <p class="form-hint">Restore conversations from an exported JSON backup file. Uploaded chats immediately sync to your Puter cloud account.</p>
             <input type="file" id="import-file-input" accept=".json" style="display: none;">
             <button class="btn-secondary" id="btn-import-chats" style="align-self: flex-start; margin-top: 0.35rem;">
               📤 Import Chats from JSON
@@ -800,6 +860,6 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Main Chat Logic -->
-  <script src="chat.js?v=2.7"></script>
+  <script src="chat.js?v=2.8"></script>
 </body>
 </html>

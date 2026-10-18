@@ -1,0 +1,7 @@
+# Robots.txt for Omni Chat (omni.endra.in)
+User-agent: *
+Allow: /
+
+# Host & Sitemap specification
+Host: https://omni.endra.in
+Sitemap: https://omni.endra.in/sitemap.xml
