@@ -440,7 +440,6 @@
     }
 
     await persistSettings();
-    await writeSharedCrossDeviceState(false);
     updateAuthUI();
     renderActiveSession();
     showToast('Profile and settings saved successfully');
