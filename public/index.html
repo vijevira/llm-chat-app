@@ -181,18 +181,18 @@
         </button>
       </div>
 
-      <!-- Custom Apps & Projects Section -->
+      <!-- Custom Projects Section -->
       <div class="projects-section" id="projects-section">
         <div class="projects-section-header">
           <div class="projects-section-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            <span>Custom Apps</span>
+            <span>Custom Projects</span>
           </div>
           <div class="projects-header-actions" style="display:flex;align-items:center;gap:4px;">
-            <button class="icon-btn-xs" id="btn-explore-apps" title="Explore Community Apps" aria-label="Explore Community Apps">
+            <button class="icon-btn-xs" id="btn-explore-apps" title="Explore Community Apps" aria-label="Explore Community Apps" style="display: none;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
             </button>
-            <button class="icon-btn-xs" id="btn-create-project" title="Create Custom App" aria-label="Create Custom App">
+            <button class="icon-btn-xs" id="btn-create-project" title="Create Custom Project" aria-label="Create Custom Project">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
@@ -202,8 +202,8 @@
         </div>
       </div>
 
-      <!-- Sandbox Web Apps Section (History like Custom Apps) -->
-      <div class="projects-section sandbox-sidebar-section" id="sandbox-sidebar-section">
+      <!-- Sandbox Web Apps Section (Hidden to conserve credits) -->
+      <div class="projects-section sandbox-sidebar-section" id="sandbox-sidebar-section" style="display: none;">
         <div class="projects-section-header">
           <div class="projects-section-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -310,14 +310,14 @@
         </div>
 
         <div class="topbar-right">
-          <!-- Direct Live Sandbox Split View Toggle -->
-          <button class="btn-topbar-action" id="btn-topbar-sandbox" type="button" title="Open Interactive Web App Sandbox" aria-label="Live Sandbox">
+          <!-- Direct Live Sandbox Split View Toggle (Hidden from header) -->
+          <button class="btn-topbar-action" id="btn-topbar-sandbox" type="button" title="Open Interactive Web App Sandbox" aria-label="Live Sandbox" style="display: none;">
             <span class="topbar-action-icon">⚡</span>
             <span class="topbar-action-label">Sandbox</span>
           </button>
 
-          <!-- Direct Plugins & Intelligent Tools Modal Trigger -->
-          <button class="btn-topbar-action" id="btn-topbar-plugins" type="button" title="Configure Plugins & Intelligent Tools" aria-label="Plugins & Tools">
+          <!-- Direct Plugins & Intelligent Tools Modal Trigger (Hidden from header) -->
+          <button class="btn-topbar-action" id="btn-topbar-plugins" type="button" title="Configure Plugins & Intelligent Tools" aria-label="Plugins & Tools" style="display: none;">
             <span class="topbar-action-icon">🧩</span>
             <span class="topbar-action-label">Plugins</span>
           </button>
@@ -1420,7 +1420,7 @@
   <div class="modal-overlay" id="model-modal">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h2 class="modal-title">Select AI Model (500+ Available)</h2>
+        <h2 class="modal-title">Select AI Model</h2>
         <button class="btn-gemini-icon" id="btn-close-model-modal" title="Close" aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>

@@ -6,10 +6,21 @@
 
 import { appState, saveTombstones } from '../state/app-state.js';
 import { STORAGE_KEY_SESSIONS } from '../config/constants.js';
+import { getModelById } from '../config/models.js';
 import { escapeHtml, showToast, formatDate, openImageLightbox } from '../utils/helpers.js';
 import { formatMarkdown } from '../utils/markdown.js';
 import { renderActiveProjectPill, closeProjectStudio, renderProjectsList } from './project-studio.js';
 import { closeSandboxStudio } from './sandbox-studio.js';
+
+export function updateActiveModelDisplay() {
+  const selectedName = document.getElementById('selected-model-name');
+  const selectedProvider = document.getElementById('selected-model-provider');
+  const chatModelName = document.getElementById('chat-model-name');
+  const m = getModelById(appState.settings.selectedModel);
+  if (selectedName) selectedName.textContent = m.name;
+  if (selectedProvider) selectedProvider.textContent = m.provider;
+  if (chatModelName) chatModelName.textContent = m.name;
+}
 
 export function initSessionManager() {
   const btnNewChat = document.getElementById('btn-new-chat');
@@ -90,6 +101,9 @@ export function switchSession(id) {
   const session = appState.sessions.find(s => s.id === id);
   if (session) {
     appState.activeProjectId = session.projectId || null;
+    if (session.model) {
+      appState.settings.selectedModel = session.model;
+    }
   } else {
     appState.activeProjectId = null;
   }
@@ -260,6 +274,8 @@ export function renderActiveSession() {
   } else if (topbarTitle) {
     topbarTitle.textContent = session.title || 'Omni Chat';
   }
+
+  updateActiveModelDisplay();
 
   if (!messagesInner) return;
 

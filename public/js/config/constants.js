@@ -241,54 +241,618 @@ export const STARTER_TEMPLATES = {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Focus Pomodoro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FocusPulse • Modern Pomodoro Timer</title>
   <style>
-    body { font-family: sans-serif; background: #111827; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-    .timer { font-size: 5rem; font-weight: 800; color: #ef4444; font-variant-numeric: tabular-nums; margin-bottom: 1.5rem; }
-    .btn-row { display: flex; gap: 0.75rem; }
-    button { padding: 0.75rem 1.5rem; border: none; border-radius: 0.75rem; font-size: 1rem; font-weight: bold; cursor: pointer; }
-    .btn-start { background: #ef4444; color: white; }
-    .btn-reset { background: #374151; color: #d1d5db; }
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 28, 45, 0.7);
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #f43f5e;
+      --accent-glow: rgba(244, 63, 94, 0.35);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --radius: 1.25rem;
+    }
+
+    [data-mode="shortBreak"] {
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.35);
+    }
+
+    [data-mode="longBreak"] {
+      --accent: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.35);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, var(--bg) 80%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      transition: background 0.5s ease;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-icon {
+      font-size: 1.35rem;
+    }
+
+    .streak-badge {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .streak-badge span {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .mode-pills {
+      display: flex;
+      background: var(--card-bg);
+      padding: 0.3rem;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+      gap: 0.25rem;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .timer-card {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .progress-svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .circle-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.05);
+      stroke-width: 8;
+    }
+
+    .circle-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.8s ease, stroke 0.4s ease;
+      filter: drop-shadow(0 0 8px var(--accent-glow));
+    }
+
+    .timer-inner {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .time-digits {
+      font-size: 4.25rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .active-task-tag {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.65rem;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .btn-main {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.9rem 2.25rem;
+      border-radius: 9999px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-main:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+    }
+
+    .btn-secondary {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 48px;
+      height: 48px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .task-card {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      backdrop-filter: blur(12px);
+    }
+
+    .task-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+    }
+
+    .task-card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .task-input-wrap {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .task-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      padding: 0.6rem 0.85rem;
+      color: var(--text);
+      font-size: 0.86rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .task-input:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-add-task {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 0.65rem;
+      padding: 0 1rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+
+    .btn-add-task:hover {
+      filter: brightness(1.1);
+    }
+
+    .task-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      max-height: 190px;
+      overflow-y: auto;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.75rem;
+      border-radius: 0.65rem;
+      font-size: 0.86rem;
+      transition: background 0.15s;
+    }
+
+    .task-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .task-item.active-task {
+      border-color: var(--accent);
+      background: rgba(244, 63, 94, 0.08);
+    }
+
+    .task-left {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .task-checkbox {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .task-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .task-item.completed .task-label {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .btn-del-task {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .btn-del-task:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
   </style>
 </head>
-<body>
-  <div class="timer" id="time">25:00</div>
-  <div class="btn-row">
-    <button class="btn-start" id="btn-toggle" onclick="toggle()">Start Focus</button>
-    <button class="btn-reset" onclick="reset()">Reset</button>
+<body data-mode="pomodoro">
+  <div class="container">
+    <div class="header-bar">
+      <div class="brand">
+        <span class="brand-icon">🍅</span>
+        <span>FocusPulse</span>
+      </div>
+      <div class="streak-badge">
+        <span>Streak:</span> <b id="streak-count">0</b> 🍅
+      </div>
+    </div>
+
+    <!-- Mode Selectors -->
+    <div class="mode-pills">
+      <button class="mode-btn active" data-mode-btn="pomodoro" onclick="setMode('pomodoro')">Pomodoro</button>
+      <button class="mode-btn" data-mode-btn="shortBreak" onclick="setMode('shortBreak')">Short Break</button>
+      <button class="mode-btn" data-mode-btn="longBreak" onclick="setMode('longBreak')">Long Break</button>
+    </div>
+
+    <!-- Circular Progress Timer -->
+    <div class="timer-card">
+      <svg class="progress-svg" viewBox="0 0 260 260">
+        <circle class="circle-bg" cx="130" cy="130" r="115"></circle>
+        <circle class="circle-progress" id="progress-circle" cx="130" cy="130" r="115" stroke-dasharray="722.56" stroke-dashoffset="0"></circle>
+      </svg>
+      <div class="timer-inner">
+        <div class="time-digits" id="time-display">25:00</div>
+        <div class="active-task-tag" id="current-task-display">Focus on your primary goal</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-row">
+      <button class="btn-secondary" onclick="resetTimer()" title="Reset Timer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+      <button class="btn-main" id="btn-toggle" onclick="toggleTimer()">
+        <span id="btn-toggle-icon">▶</span>
+        <span id="btn-toggle-text">START FOCUS</span>
+      </button>
+      <button class="btn-secondary" onclick="skipTimer()" title="Skip Session">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+      </button>
+    </div>
+
+    <!-- Session Task List -->
+    <div class="task-card">
+      <div class="task-card-header">
+        <div class="task-card-title">📝 Focus Tasks</div>
+        <div style="font-size:0.75rem; color:var(--text-muted);" id="task-progress-label">0/0 completed</div>
+      </div>
+      <div class="task-input-wrap">
+        <input type="text" class="task-input" id="task-input" placeholder="What are you focusing on?" onkeydown="if(event.key==='Enter')addTask()">
+        <button class="btn-add-task" onclick="addTask()">+ Add</button>
+      </div>
+      <ul class="task-list" id="task-list">
+        <li class="task-item active-task" onclick="selectFocusTask(this, 'Deep Work Session')">
+          <div class="task-left">
+            <input type="checkbox" class="task-checkbox" onchange="toggleTaskDone(event, this)">
+            <span class="task-label">Deep Work Session</span>
+          </div>
+          <button class="btn-del-task" onclick="deleteTask(event, this)">✕</button>
+        </li>
+      </ul>
+    </div>
   </div>
+
   <script>
-    let sec = 1500, active = false, interval = null;
-    function format(s) { const m = Math.floor(s/60); const rem = s%60; return (m<10?'0':'')+m+':'+(rem<10?'0':'')+rem; }
-    function toggle() {
-      active = !active;
-      document.getElementById('btn-toggle').textContent = active ? 'Pause' : 'Start Focus';
-      if (active) {
-        interval = setInterval(() => {
-          if (sec > 0) {
-            sec--;
-            document.getElementById('time').textContent = format(sec);
-          } else {
-            clearInterval(interval);
-            active = false;
-            alert("⏰ Pomodoro Finished! Time for a short break.");
-            reset();
-          }
-        }, 1000);
-      } else {
-        clearInterval(interval);
+    // Web Audio Synthesized Chime (zero audio asset dependencies)
+    let audioCtx = null;
+    function playChime(type = 'complete') {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const notes = type === 'complete' ? [523.25, 659.25, 783.99, 1046.50] : [440, 554.37];
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.12);
+          gain.gain.setValueAtTime(0.18, audioCtx.currentTime + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + idx * 0.12 + 0.8);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime + idx * 0.12);
+          osc.stop(audioCtx.currentTime + idx * 0.12 + 0.85);
+        });
+      } catch (e) {
+        console.warn('Audio chime unsupported:', e);
       }
     }
-    function reset() {
-      active = false;
-      clearInterval(interval);
-      sec = 1500;
-      document.getElementById('time').textContent = "25:00";
-      document.getElementById('btn-toggle').textContent = "Start Focus";
+
+    const MODES = {
+      pomodoro: 25 * 60,
+      shortBreak: 5 * 60,
+      longBreak: 15 * 60
+    };
+
+    let currentMode = 'pomodoro';
+    let totalSeconds = MODES[currentMode];
+    let remainingSeconds = totalSeconds;
+    let timerInterval = null;
+    let isRunning = false;
+    let streak = 0;
+
+    const radius = 115;
+    const circumference = 2 * Math.PI * radius; // 722.56
+    const circle = document.getElementById('progress-circle');
+    circle.style.strokeDasharray = circumference;
+
+    function formatTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
     }
+
+    function updateProgressRing() {
+      const fraction = remainingSeconds / totalSeconds;
+      const offset = circumference * (1 - fraction);
+      circle.style.strokeDashoffset = offset;
+    }
+
+    function updateDisplay() {
+      document.getElementById('time-display').textContent = formatTime(remainingSeconds);
+      document.title = \`(\${formatTime(remainingSeconds)}) FocusPulse\`;
+      updateProgressRing();
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.body.setAttribute('data-mode', mode);
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-mode-btn') === mode);
+      });
+      pauseTimer();
+      totalSeconds = MODES[mode];
+      remainingSeconds = totalSeconds;
+      updateDisplay();
+    }
+
+    function toggleTimer() {
+      if (isRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    }
+
+    function startTimer() {
+      if (isRunning) return;
+      playChime('start');
+      isRunning = true;
+      document.getElementById('btn-toggle-icon').textContent = '❚❚';
+      document.getElementById('btn-toggle-text').textContent = 'PAUSE';
+
+      timerInterval = setInterval(() => {
+        if (remainingSeconds > 0) {
+          remainingSeconds--;
+          updateDisplay();
+        } else {
+          finishSession();
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      isRunning = false;
+      clearInterval(timerInterval);
+      document.getElementById('btn-toggle-icon').textContent = '▶';
+      document.getElementById('btn-toggle-text').textContent = remainingSeconds < totalSeconds ? 'RESUME' : 'START FOCUS';
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      remainingSeconds = totalSeconds;
+      updateDisplay();
+    }
+
+    function finishSession() {
+      pauseTimer();
+      playChime('complete');
+      if (currentMode === 'pomodoro') {
+        streak++;
+        document.getElementById('streak-count').textContent = streak;
+        alert("🎉 Pomodoro Completed! Great focus session. Take a well-deserved break.");
+        setMode(streak % 4 === 0 ? 'longBreak' : 'shortBreak');
+      } else {
+        alert("🔔 Break finished! Ready to jump back into focus?");
+        setMode('pomodoro');
+      }
+    }
+
+    function skipTimer() {
+      if (confirm('Skip this interval and move to next?')) {
+        finishSession();
+      }
+    }
+
+    // Task Management
+    function addTask() {
+      const input = document.getElementById('task-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const li = document.createElement('li');
+      li.className = 'task-item';
+      li.onclick = (e) => selectFocusTask(li, text, e);
+      li.innerHTML = \`
+        <div class="task-left">
+          <input type="checkbox" class="task-checkbox" onchange="toggleTaskDone(event, this)">
+          <span class="task-label">\${escapeHtml(text)}</span>
+        </div>
+        <button class="btn-del-task" onclick="deleteTask(event, this)">✕</button>
+      \`;
+      document.getElementById('task-list').appendChild(li);
+      input.value = '';
+      updateTaskCount();
+    }
+
+    function selectFocusTask(itemEl, text, e) {
+      if (e && (e.target.classList.contains('task-checkbox') || e.target.classList.contains('btn-del-task'))) return;
+      document.querySelectorAll('.task-item').forEach(el => el.classList.remove('active-task'));
+      itemEl.classList.add('active-task');
+      document.getElementById('current-task-display').textContent = 'Focusing on: ' + text;
+    }
+
+    function toggleTaskDone(e, checkbox) {
+      e.stopPropagation();
+      const item = checkbox.closest('.task-item');
+      if (item) {
+        item.classList.toggle('completed', checkbox.checked);
+        if (checkbox.checked) playChime('start');
+        updateTaskCount();
+      }
+    }
+
+    function deleteTask(e, btn) {
+      e.stopPropagation();
+      const item = btn.closest('.task-item');
+      if (item) {
+        item.remove();
+        updateTaskCount();
+      }
+    }
+
+    function updateTaskCount() {
+      const all = document.querySelectorAll('.task-item').length;
+      const done = document.querySelectorAll('.task-item.completed').length;
+      document.getElementById('task-progress-label').textContent = \`\${done}/\${all} completed\`;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    }
+
+    updateDisplay();
+    updateTaskCount();
   </script>
 </body>
 </html>`,
+
 
   markdown: `<!DOCTYPE html>
 <html lang="en">

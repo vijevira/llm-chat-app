@@ -205,7 +205,7 @@ export function renderProjectsList() {
   if (appState.projects.length === 0) {
     container.innerHTML = `
       <div style="padding: 0.5rem 0.75rem; font-size: 0.78rem; color: var(--text-muted); font-style: italic;">
-        No custom apps created yet.
+        No custom projects created yet. Click + to create one.
       </div>
     `;
     return;

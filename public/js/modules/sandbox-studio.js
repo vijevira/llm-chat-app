@@ -1303,6 +1303,7 @@ export async function executeSandboxAiGeneration(prompt, isInitial = false, cust
   if (statusText) statusText.textContent = isInitial ? 'Architecting application files...' : 'Applying surgical code modifications...';
 
   let raw = '';
+  let apiError = null;
 
   try {
     if (typeof puter !== 'undefined' && puter.ai && puter.ai.chat) {
@@ -1354,13 +1355,27 @@ Instructions: Apply the requested modification surgically while keeping all othe
       ];
 
       const modelToUse = appState?.settings?.selectedModel || 'gemini-2.5-flash';
+      const isReasoning = (modelToUse || '').includes('r1') ||
+                          (modelToUse || '').toLowerCase().startsWith('o1') ||
+                          (modelToUse || '').toLowerCase().startsWith('o3');
+
+      const chatOptions = { model: modelToUse, stream: true };
+      if (!isReasoning) {
+        chatOptions.temperature = 0.7;
+      }
+
       let response;
       try {
         updateSandboxBuilderStep(1, `Connecting model (${modelToUse})...`, `// Initiating connection to Puter AI...\n// Model: ${modelToUse}\n// Mode: ${isInitial ? 'Initial Generation' : 'Surgical Refactor'}\n// Request: ${prompt.slice(0, 80)}`);
-        response = await puter.ai.chat(messages, { model: modelToUse, stream: true, temperature: 0.7 });
+        response = await puter.ai.chat(messages, chatOptions);
       } catch (e) {
         console.warn('Selected model stream failed, trying gpt-4o-mini:', e);
-        response = await puter.ai.chat(messages, { model: 'gpt-4o-mini', stream: true, temperature: 0.7 });
+        try {
+          response = await puter.ai.chat(messages, { model: 'gpt-4o-mini', stream: true, temperature: 0.7 });
+        } catch (fallbackErr) {
+          apiError = fallbackErr || e;
+          throw fallbackErr;
+        }
       }
 
       if (response && typeof response[Symbol.asyncIterator] === 'function') {
@@ -1406,6 +1421,7 @@ Instructions: Apply the requested modification surgically while keeping all othe
     }
   } catch (err) {
     console.warn('Puter AI generation encountered error:', err);
+    apiError = err;
   }
 
   // Extract HTML code block
@@ -1483,17 +1499,35 @@ Instructions: Apply the requested modification surgically while keeping all othe
     } else {
       hideSandboxBuilderOverlay();
       if (indicator) indicator.style.display = 'none';
+
+      const errStr = (apiError?.message || String(apiError || '')).toLowerCase();
+      const isBalanceErr = errStr.includes('balance') || errStr.includes('funding') || errStr.includes('credit') || errStr.includes('upgrade') || errStr.includes('402');
+
       if (!isInitial) {
-        showToast('⚠️ AI modification could not be applied cleanly. Working version preserved.', 5000);
+        let errorMsg = `⚠️ Could not apply requested changes without errors for: "${escapeHtml(prompt)}". Your existing application remains safe and functional.`;
+        if (isBalanceErr) {
+          showToast('⚠️ Puter AI balance limit reached. Free monthly quota exhausted.', 6000);
+          errorMsg = `⚠️ **Puter AI Balance Limit Exceeded**: Your Puter account has run out of AI credits to complete this generation request (\`puter-chat-completion::complete\`).\n\n**Why this happens:** Puter provides free AI credits, but large codebase refactorings send full source files back and forth, consuming credits.\n\n**How to continue:**\n1. **Sign in / Register at [puter.com](https://puter.com)**: Signing in or creating a fresh free Puter account restores a free monthly credit quota.\n2. **Use the VS Code IDE Tab**: You can edit and save files directly in the built-in code editor — it runs 100% locally with live hot-reloading and requires zero AI credits.\n3. **Switch to a lighter model**: Try selecting **GPT-4o Mini** or **Gemini 2.5 Flash** in the model selector.`;
+        } else {
+          showToast('⚠️ AI modification could not be applied cleanly. Working version preserved.', 5000);
+          if (apiError?.message) {
+            errorMsg += `\n\n*Technical detail: ${escapeHtml(apiError.message)}*`;
+          }
+        }
+
         currentSandboxApp.turns.push({ sender: 'user', text: prompt });
         currentSandboxApp.turns.push({
           sender: 'ai',
-          text: `⚠️ Could not apply requested changes without errors for: "${escapeHtml(prompt)}". Your existing application remains safe and functional.`
+          text: errorMsg
         });
         saveSandboxAppToHistory(currentSandboxApp);
         renderSandboxMessages();
       } else {
-        showToast('AI could not generate app. Please try another prompt.');
+        if (isBalanceErr) {
+          showToast('⚠️ Puter AI balance limit reached. Sign in at puter.com or switch model.', 6000);
+        } else {
+          showToast('AI could not generate app. Please try another prompt.');
+        }
       }
       return;
     }

@@ -144,6 +144,7 @@ function initSidebar() {
 
 function initModelPicker() {
   const btnPicker = document.getElementById('btn-model-picker');
+  const btnChatPicker = document.getElementById('btn-chat-model-picker');
   const modal = document.getElementById('model-modal');
   const btnClose = document.getElementById('btn-close-model-modal');
   const btnCancel = document.getElementById('btn-cancel-model-modal');
@@ -152,6 +153,7 @@ function initModelPicker() {
   const providerPillsBar = document.getElementById('provider-pills-bar');
   const selectedName = document.getElementById('selected-model-name');
   const selectedProvider = document.getElementById('selected-model-provider');
+  const chatModelName = document.getElementById('chat-model-name');
 
   let activeProviderFilter = 'all';
 
@@ -159,6 +161,7 @@ function initModelPicker() {
     const m = getModelById(appState.settings.selectedModel);
     if (selectedName) selectedName.textContent = m.name;
     if (selectedProvider) selectedProvider.textContent = m.provider;
+    if (chatModelName) chatModelName.textContent = m.name;
   };
 
   updateHeaderDisplay();
@@ -251,6 +254,10 @@ function initModelPicker() {
 
         item.addEventListener('click', () => {
           appState.settings.selectedModel = m.id;
+          const cur = appState.sessions.find(s => s.id === appState.currentSessionId);
+          if (cur) {
+            cur.model = m.id;
+          }
           saveSettingsToStorage();
           updateHeaderDisplay();
           closeModal(modal);
@@ -262,19 +269,24 @@ function initModelPicker() {
     });
   };
 
+  const openModelPicker = () => {
+    if (searchInput) searchInput.value = '';
+    activeProviderFilter = 'all';
+    if (providerPillsBar) {
+      providerPillsBar.querySelectorAll('.provider-pill').forEach(p => {
+        p.classList.toggle('active', p.getAttribute('data-provider') === 'all');
+      });
+    }
+    openModal(modal);
+    renderList();
+    setTimeout(() => searchInput?.focus(), 60);
+  };
+
   if (btnPicker && modal) {
-    btnPicker.addEventListener('click', () => {
-      if (searchInput) searchInput.value = '';
-      activeProviderFilter = 'all';
-      if (providerPillsBar) {
-        providerPillsBar.querySelectorAll('.provider-pill').forEach(p => {
-          p.classList.toggle('active', p.getAttribute('data-provider') === 'all');
-        });
-      }
-      openModal(modal);
-      renderList();
-      setTimeout(() => searchInput?.focus(), 60);
-    });
+    btnPicker.addEventListener('click', openModelPicker);
+  }
+  if (btnChatPicker && modal) {
+    btnChatPicker.addEventListener('click', openModelPicker);
   }
 
   if (btnClose && modal) {
