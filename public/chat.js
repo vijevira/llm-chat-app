@@ -7,7 +7,7 @@
   'use strict';
 
   // --- Constants & Presets ---
-  const APP_VERSION = 'v1.1.0';
+  const APP_VERSION = 'v1.2.0';
   const DEFAULT_MODEL = 'gpt-4o-mini';
   const STORAGE_KEY_SESSIONS = 'omni_chat_sessions';
   const STORAGE_KEY_SETTINGS = 'omni_chat_settings';
@@ -239,6 +239,7 @@
   const projectDropzone = document.getElementById('project-dropzone');
   const projectFileInput = document.getElementById('project-file-input');
   const projectFilesList = document.getElementById('project-files-list');
+  const projectModalFileCount = document.getElementById('project-modal-file-count');
   const projectTokenCount = document.getElementById('project-token-count');
 
   // Studio Live Preview Elements
@@ -257,6 +258,15 @@
   const btnArtifactVpDesktop = document.getElementById('btn-artifact-vp-desktop');
   const btnArtifactVpMobile = document.getElementById('btn-artifact-vp-mobile');
   const btnArtifactReload = document.getElementById('btn-artifact-reload');
+  const btnArtifactGithub = document.getElementById('btn-artifact-github');
+  const artifactsGithubPanel = document.getElementById('artifacts-github-panel');
+  const btnCloseGithubPanel = document.getElementById('btn-close-github-panel');
+  const githubRepoInput = document.getElementById('github-repo-input');
+  const btnFetchGithubRepo = document.getElementById('btn-fetch-github-repo');
+  const artifactsPromptInput = document.getElementById('artifacts-prompt-input');
+  const btnSubmitArtifactPrompt = document.getElementById('btn-submit-artifact-prompt');
+  const artifactsStatusIndicator = document.getElementById('artifacts-status-indicator');
+  const artifactsStatusText = document.getElementById('artifacts-status-text');
   const btnPublishArtifact = document.getElementById('btn-publish-artifact');
   const btnCloseArtifacts = document.getElementById('btn-close-artifacts');
   const artifactsPublishedBanner = document.getElementById('artifacts-published-banner');
@@ -277,6 +287,8 @@
   const pluginsModal = document.getElementById('plugins-modal');
   const btnClosePluginsModal = document.getElementById('btn-close-plugins-modal');
   const btnClosePluginsModalFooter = document.getElementById('btn-close-plugins-modal-footer');
+  const pluginsList = document.getElementById('plugins-list');
+  const pluginsCategoriesBar = document.getElementById('plugins-categories-bar');
   const togglePluginSearch = document.getElementById('toggle-plugin-search');
   const togglePluginCode = document.getElementById('toggle-plugin-code');
   const badgePluginSearchStatus = document.getElementById('badge-plugin-search-status');
@@ -294,9 +306,90 @@
   const btnAddFormField = document.getElementById('btn-add-form-field');
   const appFormFieldsBuilder = document.getElementById('app-form-fields-builder');
 
+  const PLUGINS_CATALOG = [
+    {
+      id: 'webSearch',
+      name: 'Live Web Search Grounding',
+      icon: '🌐',
+      category: 'Research',
+      desc: 'Grounds AI responses in real-time web facts, news, and clickable citations via DuckDuckGo.',
+      installed: true,
+      enabled: false
+    },
+    {
+      id: 'codeRunner',
+      name: 'JavaScript Code Runner',
+      icon: '⚡',
+      category: 'Developer',
+      desc: 'Client-side isolated execution sandbox for JavaScript algorithms, math, and string transformations.',
+      installed: true,
+      enabled: false
+    },
+    {
+      id: 'githubExplorer',
+      name: 'GitHub Repo & Code Explorer',
+      icon: '🐙',
+      category: 'Developer',
+      desc: 'Inspect public repositories, view file trees, and load remote code into chat and the Web Sandbox.',
+      installed: true,
+      enabled: true
+    },
+    {
+      id: 'chartVisualizer',
+      name: 'Chart & Data Visualizer',
+      icon: '📊',
+      category: 'Analytics',
+      desc: 'Automatically visualizes structured datasets, financial numbers, and matrices using Chart.js.',
+      installed: true,
+      enabled: true
+    },
+    {
+      id: 'mathSolver',
+      name: 'LaTeX & Scientific Math Solver',
+      icon: '🧮',
+      category: 'Developer',
+      desc: 'Step-by-step mathematical reasoning formatted with crisp KaTeX and LaTeX equation rendering.',
+      installed: false,
+      enabled: false
+    },
+    {
+      id: 'uiComponents',
+      name: 'Tailwind & UI Component Studio',
+      icon: '🎨',
+      category: 'Developer',
+      desc: 'Generates production-grade Tailwind CSS, glassmorphic cards, and responsive components.',
+      installed: false,
+      enabled: false
+    },
+    {
+      id: 'seoAuditor',
+      name: 'SEO & Web Meta Auditor',
+      icon: '🔍',
+      category: 'Research',
+      desc: 'Audits web page structure, analyzes Open Graph meta tags, and generates schema.org JSON-LD.',
+      installed: false,
+      enabled: false
+    },
+    {
+      id: 'docInspector',
+      name: 'Document & PDF Deep Inspector',
+      icon: '📄',
+      category: 'Analytics',
+      desc: 'Extracts tabular data, key clauses, summaries, and hierarchies from uploaded documents.',
+      installed: false,
+      enabled: false
+    }
+  ];
+
   let pluginsState = {
     webSearch: false,
-    codeRunner: false
+    codeRunner: false,
+    githubExplorer: true,
+    chartVisualizer: true,
+    mathSolver: false,
+    uiComponents: false,
+    seoAuditor: false,
+    docInspector: false
   };
 
   let editingProjectFormFields = [];
@@ -3030,7 +3123,72 @@
 </html>`;
     }
 
+    // Safe in-memory storage shim and error listener to prevent sandbox crashes
+    const runtimeShims = `<script>
+(function() {
+  // In-Memory Storage Shim for Sandboxed iframes
+  try {
+    window.localStorage && window.localStorage.getItem('__test');
+  } catch (e) {
+    var _memStore = {};
+    window.localStorage = {
+      getItem: function(k) { return _memStore.hasOwnProperty(k) ? _memStore[k] : null; },
+      setItem: function(k, v) { _memStore[k] = String(v); },
+      removeItem: function(k) { delete _memStore[k]; },
+      clear: function() { _memStore = {}; },
+      key: function(i) { return Object.keys(_memStore)[i] || null; },
+      get length() { return Object.keys(_memStore).length; }
+    };
+  }
+  try {
+    window.sessionStorage && window.sessionStorage.getItem('__test');
+  } catch (e) {
+    var _sessStore = {};
+    window.sessionStorage = {
+      getItem: function(k) { return _sessStore.hasOwnProperty(k) ? _sessStore[k] : null; },
+      setItem: function(k, v) { _sessStore[k] = String(v); },
+      removeItem: function(k) { delete _sessStore[k]; },
+      clear: function() { _sessStore = {}; },
+      key: function(i) { return Object.keys(_sessStore)[i] || null; },
+      get length() { return Object.keys(_sessStore).length; }
+    };
+  }
+  // Error listener to catch and report runtime crashes visually
+  window.addEventListener('error', function(err) {
+    console.warn('[Sandbox Runtime Error]:', err.message);
+    if (!document.body || document.body.children.length === 0 || document.body.offsetHeight < 30) {
+      var box = document.getElementById('__omni_err_box') || document.createElement('div');
+      box.id = '__omni_err_box';
+      box.style = 'position:fixed;top:10px;left:10px;right:10px;background:#7f1d1d;color:#fecaca;padding:10px 14px;border-radius:8px;font-family:sans-serif;font-size:12px;z-index:999999;border:1px solid #ef4444;box-shadow:0 4px 14px rgba(0,0,0,0.4);';
+      box.innerHTML = '<strong>App Error:</strong> ' + (err.message || 'Script error');
+      if (document.body) document.body.appendChild(box);
+    }
+  });
+})();
+<\/script>`;
+
     let processed = trimmed;
+
+    // If pure HTML fragment without full doctype/html envelope, wrap properly
+    if (!/<!DOCTYPE\s+html/i.test(processed) && !/<html[\s>]/i.test(processed)) {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { min-height: 100vh; margin: 0; }
+  </style>
+  ${runtimeShims}
+</head>
+<body>
+  ${processed}
+</body>
+</html>`;
+    }
+
+    // Ensure viewport meta tag exists
     if (!/<meta[^>]+viewport/i.test(processed)) {
       if (/<head[\s>]/i.test(processed)) {
         processed = processed.replace(/<head[\s>]/i, '$&\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">');
@@ -3038,6 +3196,16 @@
         processed = processed.replace(/<html[\s>]/i, '$&\n<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>');
       }
     }
+
+    // Inject runtime shims into head or before body
+    if (/<head[\s>]/i.test(processed)) {
+      processed = processed.replace(/<head[\s>]/i, '$&\n  ' + runtimeShims);
+    } else if (/<body[\s>]/i.test(processed)) {
+      processed = processed.replace(/<body[\s>]/i, runtimeShims + '\n$&');
+    } else {
+      processed = runtimeShims + '\n' + processed;
+    }
+
     return processed;
   }
 
@@ -3149,6 +3317,340 @@
     }
   }
 
+  // --- In-Sandbox Generative Web App Builder & GitHub Integration ---
+  const STARTER_TEMPLATES = {
+    arcade: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neon Breakout Arcade</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #090a0f; color: #fff; font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    #score-board { margin-bottom: 12px; font-size: 1.15rem; font-weight: bold; color: #00f2fe; }
+    canvas { background: #13151f; border: 2px solid #00f2fe; border-radius: 12px; box-shadow: 0 0 25px rgba(0, 242, 254, 0.25); }
+    .btn-restart { margin-top: 14px; padding: 7px 18px; background: #00f2fe; color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="score-board">Score: <span id="score">0</span> | Lives: <span id="lives">3</span></div>
+  <canvas id="gameCanvas" width="460" height="300"></canvas>
+  <button class="btn-restart" onclick="restartGame()">Restart Game</button>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    let ballRadius = 6, x = canvas.width/2, y = canvas.height-30, dx = 2.5, dy = -2.5;
+    let paddleHeight = 10, paddleWidth = 75, paddleX = (canvas.width-paddleWidth)/2;
+    let rightPressed = false, leftPressed = false, score = 0, lives = 3;
+    const brickRowCount = 4, brickColumnCount = 6, brickWidth = 62, brickHeight = 15, brickPadding = 10, brickOffsetTop = 25, brickOffsetLeft = 18;
+    let bricks = [];
+    function initBricks() {
+      bricks = [];
+      for(let c=0; c<brickColumnCount; c++) {
+        bricks[c] = [];
+        for(let r=0; r<brickRowCount; r++) bricks[c][r] = { x: 0, y: 0, status: 1 };
+      }
+    }
+    initBricks();
+    document.addEventListener("keydown", (e) => { if(e.key === "Right" || e.key === "ArrowRight") rightPressed = true; else if(e.key === "Left" || e.key === "ArrowLeft") leftPressed = true; });
+    document.addEventListener("keyup", (e) => { if(e.key === "Right" || e.key === "ArrowRight") rightPressed = false; else if(e.key === "Left" || e.key === "ArrowLeft") leftPressed = false; });
+    function collisionDetection() {
+      for(let c=0; c<brickColumnCount; c++) {
+        for(let r=0; r<brickRowCount; r++) {
+          let b = bricks[c][r];
+          if(b.status === 1) {
+            if(x > b.x && x < b.x+brickWidth && y > b.y && y < b.y+brickHeight) {
+              dy = -dy; b.status = 0; score++;
+              document.getElementById("score").textContent = score;
+              if(score === brickRowCount*brickColumnCount) { alert("🎉 YOU WIN!"); restartGame(); }
+            }
+          }
+        }
+      }
+    }
+    function drawBall() { ctx.beginPath(); ctx.arc(x, y, ballRadius, 0, Math.PI*2); ctx.fillStyle = "#ff007f"; ctx.fill(); ctx.closePath(); }
+    function drawPaddle() { ctx.beginPath(); ctx.rect(paddleX, canvas.height-paddleHeight-2, paddleWidth, paddleHeight); ctx.fillStyle = "#00f2fe"; ctx.fill(); ctx.closePath(); }
+    function drawBricks() {
+      const colors = ["#ff007f", "#9d00ff", "#00f2fe", "#00ff87"];
+      for(let c=0; c<brickColumnCount; c++) {
+        for(let r=0; r<brickRowCount; r++) {
+          if(bricks[c][r].status === 1) {
+            let brickX = (c*(brickWidth+brickPadding))+brickOffsetLeft;
+            let brickY = (r*(brickHeight+brickPadding))+brickOffsetTop;
+            bricks[c][r].x = brickX; bricks[c][r].y = brickY;
+            ctx.beginPath(); ctx.rect(brickX, brickY, brickWidth, brickHeight);
+            ctx.fillStyle = colors[r % colors.length]; ctx.fill(); ctx.closePath();
+          }
+        }
+      }
+    }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBricks(); drawBall(); drawPaddle(); collisionDetection();
+      if(x + dx > canvas.width-ballRadius || x + dx < ballRadius) dx = -dx;
+      if(y + dy < ballRadius) dy = -dy;
+      else if(y + dy > canvas.height-ballRadius-paddleHeight) {
+        if(x > paddleX && x < paddleX + paddleWidth) dy = -dy;
+        else {
+          lives--; document.getElementById("lives").textContent = lives;
+          if(!lives) { alert("💥 GAME OVER"); restartGame(); return; }
+          else { x = canvas.width/2; y = canvas.height-30; dx = 2.5; dy = -2.5; paddleX = (canvas.width-paddleWidth)/2; }
+        }
+      }
+      if(rightPressed && paddleX < canvas.width-paddleWidth) paddleX += 5;
+      else if(leftPressed && paddleX > 0) paddleX -= 5;
+      x += dx; y += dy; requestAnimationFrame(draw);
+    }
+    function restartGame() { score = 0; lives = 3; document.getElementById("score").textContent = "0"; document.getElementById("lives").textContent = "3"; initBricks(); x = canvas.width/2; y = canvas.height-30; dx = 2.5; dy = -2.5; }
+    draw();
+  <\/script>
+</body>
+</html>`,
+
+    dashboard: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Omni Analytics Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <header class="flex justify-between items-center pb-4 border-b border-slate-800">
+      <div>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">SaaS Executive Dashboard</h1>
+        <p class="text-sm text-slate-400">Live operational overview & conversion metrics</p>
+      </div>
+      <button onclick="refreshData()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition">Refresh Data</button>
+    </header>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="p-4 bg-slate-800 border border-slate-700 rounded-xl">
+        <div class="text-xs text-slate-400 font-medium">Monthly Active Users</div>
+        <div class="text-2xl font-bold mt-1 text-blue-400" id="stat-users">128,450</div>
+        <div class="text-xs text-emerald-400 mt-2">↑ 14.8% from last month</div>
+      </div>
+      <div class="p-4 bg-slate-800 border border-slate-700 rounded-xl">
+        <div class="text-xs text-slate-400 font-medium">Monthly Recurring Revenue</div>
+        <div class="text-2xl font-bold mt-1 text-emerald-400" id="stat-mrr">$48,920</div>
+        <div class="text-xs text-emerald-400 mt-2">↑ 22.4% ARR target pace</div>
+      </div>
+      <div class="p-4 bg-slate-800 border border-slate-700 rounded-xl">
+        <div class="text-xs text-slate-400 font-medium">Avg Latency (Edge Workers)</div>
+        <div class="text-2xl font-bold mt-1 text-purple-400" id="stat-latency">18ms</div>
+        <div class="text-xs text-slate-400 mt-2">Global 99.98% uptime SLA</div>
+      </div>
+    </div>
+    <div class="p-5 bg-slate-800 border border-slate-700 rounded-xl space-y-4">
+      <h2 class="text-base font-semibold">Weekly Volume Breakdown</h2>
+      <div class="h-32 flex items-end gap-3 pt-4 border-b border-slate-700">
+        <div class="flex-1 bg-indigo-500 rounded-t h-[45%] flex items-center justify-center text-xs font-bold">M</div>
+        <div class="flex-1 bg-indigo-500 rounded-t h-[65%] flex items-center justify-center text-xs font-bold">T</div>
+        <div class="flex-1 bg-indigo-500 rounded-t h-[80%] flex items-center justify-center text-xs font-bold">W</div>
+        <div class="flex-1 bg-indigo-500 rounded-t h-[55%] flex items-center justify-center text-xs font-bold">T</div>
+        <div class="flex-1 bg-indigo-500 rounded-t h-[95%] flex items-center justify-center text-xs font-bold">F</div>
+        <div class="flex-1 bg-indigo-500 rounded-t h-[40%] flex items-center justify-center text-xs font-bold">S</div>
+        <div class="flex-1 bg-indigo-500 rounded-t h-[30%] flex items-center justify-center text-xs font-bold">S</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    function refreshData() {
+      const u = Math.floor(120000 + Math.random() * 20000);
+      const m = Math.floor(45000 + Math.random() * 8000);
+      document.getElementById('stat-users').textContent = u.toLocaleString();
+      document.getElementById('stat-mrr').textContent = '$' + m.toLocaleString();
+    }
+  <\/script>
+</body>
+</html>`,
+
+    kanban: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Minimalist Kanban</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 1.5rem; }
+    h1 { font-size: 1.3rem; margin-bottom: 1.25rem; color: #38bdf8; }
+    .board { display: flex; gap: 1rem; overflow-x: auto; }
+    .column { flex: 1; min-width: 220px; background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1rem; }
+    .col-title { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.75rem; color: #94a3b8; }
+    .task { background: #334155; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; cursor: pointer; }
+    .task:hover { background: #475569; }
+    .add-btn { width: 100%; padding: 0.5rem; background: #3b82f6; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>📋 Agile Kanban Workspace</h1>
+  <div class="board">
+    <div class="column" id="col-todo">
+      <div class="col-title">To Do</div>
+      <div class="task" onclick="moveTask(this, 'col-doing')">Implement Search Grounding</div>
+      <div class="task" onclick="moveTask(this, 'col-doing')">Add GitHub Sandbox Bridge</div>
+      <button class="add-btn" onclick="addTask('col-todo')">+ Add Task</button>
+    </div>
+    <div class="column" id="col-doing">
+      <div class="col-title">In Progress</div>
+      <div class="task" onclick="moveTask(this, 'col-done')">Interactive Webapp Sandbox</div>
+    </div>
+    <div class="column" id="col-done">
+      <div class="col-title">Done</div>
+      <div class="task">Release notes v1.1.0</div>
+    </div>
+  </div>
+  <script>
+    function moveTask(el, targetColId) {
+      document.getElementById(targetColId).insertBefore(el, document.getElementById(targetColId).querySelector('.add-btn'));
+    }
+    function addTask(colId) {
+      const text = prompt('Task title:');
+      if (!text) return;
+      const t = document.createElement('div');
+      t.className = 'task';
+      t.textContent = text;
+      t.onclick = function() { moveTask(this, 'col-doing'); };
+      document.getElementById(colId).insertBefore(t, document.getElementById(colId).querySelector('.add-btn'));
+    }
+  <\/script>
+</body>
+</html>`,
+
+    pomodoro: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Focus Pomodoro</title>
+  <style>
+    body { font-family: sans-serif; background: #111827; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .timer { font-size: 5rem; font-weight: 800; color: #ef4444; font-variant-numeric: tabular-nums; margin-bottom: 1.5rem; }
+    .btn-row { display: flex; gap: 0.75rem; }
+    button { padding: 0.75rem 1.5rem; border: none; border-radius: 0.75rem; font-size: 1rem; font-weight: bold; cursor: pointer; }
+    .btn-start { background: #ef4444; color: white; }
+    .btn-reset { background: #374151; color: #d1d5db; }
+  </style>
+</head>
+<body>
+  <div class="timer" id="time">25:00</div>
+  <div class="btn-row">
+    <button class="btn-start" id="btn-toggle" onclick="toggle()">Start Focus</button>
+    <button class="btn-reset" onclick="reset()">Reset</button>
+  </div>
+  <script>
+    let sec = 1500, active = false, interval = null;
+    function format(s) { const m = Math.floor(s/60); const rem = s%60; return (m<10?'0':'')+m+':'+(rem<10?'0':'')+rem; }
+    function toggle() {
+      active = !active;
+      document.getElementById('btn-toggle').textContent = active ? 'Pause' : 'Start Focus';
+      if (active) {
+        interval = setInterval(() => {
+          if (sec > 0) { sec--; document.getElementById('time').textContent = format(sec); }
+          else { clearInterval(interval); active = false; alert('Session complete!'); }
+        }, 1000);
+      } else { clearInterval(interval); }
+    }
+    function reset() { clearInterval(interval); active = false; sec = 1500; document.getElementById('time').textContent = '25:00'; document.getElementById('btn-toggle').textContent = 'Start Focus'; }
+  <\/script>
+</body>
+</html>`
+  };
+
+  async function fetchFromGitHub(query) {
+    let url = (query || '').trim();
+    if (!url) {
+      showToast('Please enter a GitHub repository or file URL.');
+      return;
+    }
+
+    showToast('Fetching code from GitHub...');
+    if (url.startsWith('https://github.com/')) {
+      const parts = url.replace('https://github.com/', '').split('/');
+      if (parts.length >= 2) {
+        const owner = parts[0];
+        const repo = parts[1];
+        const path = parts.slice(2).join('/') || 'index.html';
+        url = `https://raw.githubusercontent.com/${owner}/${repo}/main/${path.replace(/^blob\/main\//, '')}`;
+      }
+    } else if (!url.startsWith('http')) {
+      const parts = url.split('/');
+      if (parts.length >= 2) {
+        url = `https://raw.githubusercontent.com/${parts[0]}/${parts[1]}/main/index.html`;
+      }
+    }
+
+    try {
+      let res = await fetch(url);
+      if (!res.ok && url.includes('/main/')) {
+        const masterUrl = url.replace('/main/', '/master/');
+        res = await fetch(masterUrl);
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const code = await res.text();
+      openArtifact('GitHub: ' + (url.split('/').slice(-2).join('/') || 'App'), code, 'html');
+      if (artifactsGithubPanel) artifactsGithubPanel.style.display = 'none';
+      showToast('🎉 GitHub application loaded into Sandbox!');
+    } catch (err) {
+      console.error('GitHub fetch failed:', err);
+      showToast('Could not load GitHub URL: ' + (err.message || 'File not found'));
+    }
+  }
+
+  async function handleArtifactPromptSubmit() {
+    const prompt = artifactsPromptInput?.value?.trim();
+    if (!prompt) return;
+
+    artifactsPromptInput.value = '';
+    if (artifactsStatusIndicator) {
+      artifactsStatusIndicator.style.display = 'flex';
+      if (artifactsStatusText) artifactsStatusText.textContent = `AI is coding: "${prompt.slice(0, 42)}..."`;
+    }
+    if (btnSubmitArtifactPrompt) btnSubmitArtifactPrompt.disabled = true;
+
+    try {
+      const currentCode = currentArtifact.code || DEFAULT_SANDBOX_STARTER;
+      const systemPrompt = `You are an expert Principal Frontend Web Architect.
+The user wants you to create or modify this interactive web application based on this prompt: "${prompt}".
+
+Current Web Application Code:
+${currentCode}
+
+Requirements:
+1. Return ONLY the complete, production-ready, single-file HTML code containing all HTML, CSS (or modern Tailwind CSS via <script src="https://cdn.tailwindcss.com"></script>), and JavaScript.
+2. Ensure all UI interactions, animations, buttons, and state management work smoothly and without external broken dependencies.
+3. Output the raw code inside a single \`\`\`html ... \`\`\` block. Do NOT include conversational filler, introductory markdown, or explanations.`;
+
+      const response = await puter.ai.chat(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        { model: settings.selectedModel || DEFAULT_MODEL, temperature: 0.7 }
+      );
+
+      let rawCode = typeof response === 'string' ? response : (response?.message?.content || response?.text || '');
+      if (!rawCode && response?.choices) {
+        rawCode = response.choices[0]?.message?.content || '';
+      }
+
+      const codeMatch = rawCode.match(/```(?:html|xml)?\s*([\s\S]*?)```/i);
+      const finalCode = codeMatch ? codeMatch[1].trim() : rawCode.trim();
+
+      if (finalCode) {
+        currentArtifact.code = finalCode;
+        currentArtifact.title = prompt.length > 30 ? prompt.slice(0, 30) + '...' : prompt;
+        if (artifactsTitle) artifactsTitle.textContent = currentArtifact.title;
+        artifactsSandboxFrame.srcdoc = prepareExecutableHtml(finalCode, 'html');
+        showToast('✨ Web app updated successfully!');
+      }
+    } catch (err) {
+      console.error('Artifact generation error:', err);
+      showToast('Failed to generate web app: ' + (err.message || 'Unknown error'));
+    } finally {
+      if (artifactsStatusIndicator) artifactsStatusIndicator.style.display = 'none';
+      if (btnSubmitArtifactPrompt) btnSubmitArtifactPrompt.disabled = false;
+    }
+  }
+
   // ==========================================================================
   // Pillar 2 & 3: Plugins Engine & Custom AI Apps Catalog
   // ==========================================================================
@@ -3247,22 +3749,130 @@
     }
   ];
 
-  // --- Plugins State Management ---
+  // --- Plugins State & Marketplace Management ---
+  let activePluginCategory = 'all';
+
   function loadPluginsState() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_PLUGINS);
       if (saved) {
-        pluginsState = Object.assign(pluginsState, JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        pluginsState = Object.assign(pluginsState, parsed);
+        PLUGINS_CATALOG.forEach(p => {
+          if (parsed[p.id] !== undefined) {
+            p.enabled = !!parsed[p.id];
+            p.installed = true;
+          }
+        });
       }
     } catch (_) {}
     updatePluginsUI();
+    renderPluginsMarketplace(activePluginCategory);
   }
 
   function savePluginsState() {
     try {
       localStorage.setItem(STORAGE_KEY_PLUGINS, JSON.stringify(pluginsState));
+      if (typeof puter !== 'undefined' && puter.kv) {
+        puter.kv.set('omni_chat_plugins_state', JSON.stringify(pluginsState)).catch(() => {});
+      }
     } catch (_) {}
     updatePluginsUI();
+    renderPluginsMarketplace(activePluginCategory);
+  }
+
+  function renderPluginsMarketplace(category = 'all') {
+    activePluginCategory = category;
+    if (!pluginsList) return;
+    pluginsList.innerHTML = '';
+
+    const filtered = PLUGINS_CATALOG.filter(plugin => {
+      if (category === 'all') return true;
+      if (category === 'installed') return !!plugin.installed;
+      return plugin.category === category;
+    });
+
+    if (filtered.length === 0) {
+      pluginsList.innerHTML = `
+        <div style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.85rem;">
+          No plugins found in this category.
+        </div>
+      `;
+      return;
+    }
+
+    filtered.forEach(plugin => {
+      const isInstalled = !!plugin.installed;
+      const isEnabled = !!plugin.enabled;
+
+      const card = document.createElement('div');
+      card.className = 'plugin-card';
+      card.innerHTML = `
+        <div class="plugin-card-left">
+          <span class="plugin-card-icon">${plugin.icon}</span>
+          <div class="plugin-card-info">
+            <div class="plugin-card-title-row">
+              <strong>${escapeHtml(plugin.name)}</strong>
+              <span class="plugin-badge-builtin" style="font-size:0.7rem;">${escapeHtml(plugin.category)}</span>
+              ${isInstalled ? `<span class="plugin-badge-active" style="font-size:0.7rem;background:${isEnabled ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.08)'};color:${isEnabled ? 'var(--success-color, #10b981)' : 'var(--text-muted)'};">${isEnabled ? 'Active' : 'Installed'}</span>` : ''}
+            </div>
+            <p class="plugin-card-desc">${escapeHtml(plugin.desc)}</p>
+          </div>
+        </div>
+        <div class="plugin-card-action" style="display:flex;align-items:center;gap:0.6rem;">
+          ${isInstalled ? `
+            <label class="toggle-switch" title="${isEnabled ? 'Disable' : 'Enable'} plugin">
+              <input type="checkbox" class="plugin-toggle-checkbox" data-plugin-id="${plugin.id}" ${isEnabled ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+            <button type="button" class="icon-btn-xs btn-uninstall-plugin" data-plugin-id="${plugin.id}" title="Uninstall Plugin" style="color:var(--text-muted);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          ` : `
+            <button type="button" class="btn-primary btn-sm btn-install-plugin" data-plugin-id="${plugin.id}">
+              + Install
+            </button>
+          `}
+        </div>
+      `;
+
+      // Toggle switch
+      const toggle = card.querySelector('.plugin-toggle-checkbox');
+      if (toggle) {
+        toggle.addEventListener('change', (e) => {
+          plugin.enabled = e.target.checked;
+          pluginsState[plugin.id] = plugin.enabled;
+          savePluginsState();
+          showToast(`${plugin.icon} ${plugin.name} ${plugin.enabled ? 'activated' : 'deactivated'}`);
+        });
+      }
+
+      // Install button
+      const btnInstall = card.querySelector('.btn-install-plugin');
+      if (btnInstall) {
+        btnInstall.addEventListener('click', () => {
+          plugin.installed = true;
+          plugin.enabled = true;
+          pluginsState[plugin.id] = true;
+          savePluginsState();
+          showToast(`🎉 ${plugin.icon} ${plugin.name} installed & enabled!`);
+        });
+      }
+
+      // Uninstall button
+      const btnUninstall = card.querySelector('.btn-uninstall-plugin');
+      if (btnUninstall) {
+        btnUninstall.addEventListener('click', () => {
+          plugin.installed = false;
+          plugin.enabled = false;
+          pluginsState[plugin.id] = false;
+          savePluginsState();
+          showToast(`${plugin.icon} ${plugin.name} uninstalled.`);
+        });
+      }
+
+      pluginsList.appendChild(card);
+    });
   }
 
   function updatePluginsUI() {
@@ -3275,14 +3885,6 @@
     if (toolToggleSearch) {
       if (toolBadgeSearch) toolBadgeSearch.style.display = pluginsState.webSearch ? 'inline-flex' : 'none';
     }
-    if (togglePluginSearch) {
-      togglePluginSearch.checked = !!pluginsState.webSearch;
-    }
-    if (badgePluginSearchStatus) {
-      badgePluginSearchStatus.textContent = pluginsState.webSearch ? 'Active' : 'Inactive';
-      badgePluginSearchStatus.style.background = pluginsState.webSearch ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)';
-      badgePluginSearchStatus.style.color = pluginsState.webSearch ? 'var(--success-color, #10b981)' : 'var(--text-muted)';
-    }
 
     // Code Runner
     if (pillToolCode) {
@@ -3292,14 +3894,6 @@
     }
     if (toolToggleCode) {
       if (toolBadgeCode) toolBadgeCode.style.display = pluginsState.codeRunner ? 'inline-flex' : 'none';
-    }
-    if (togglePluginCode) {
-      togglePluginCode.checked = !!pluginsState.codeRunner;
-    }
-    if (badgePluginCodeStatus) {
-      badgePluginCodeStatus.textContent = pluginsState.codeRunner ? 'Active' : 'Inactive';
-      badgePluginCodeStatus.style.background = pluginsState.codeRunner ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)';
-      badgePluginCodeStatus.style.color = pluginsState.codeRunner ? 'var(--success-color, #10b981)' : 'var(--text-muted)';
     }
   }
 
@@ -5474,11 +6068,20 @@
 
   // --- Modal Utilities ---
   function openModal(modal) {
+    if (!modal) return;
+    modal.style.display = 'flex';
+    void modal.offsetWidth;
     modal.classList.add('active');
   }
 
   function closeModal(modal) {
+    if (!modal) return;
     modal.classList.remove('active');
+    setTimeout(() => {
+      if (!modal.classList.contains('active')) {
+        modal.style.display = 'none';
+      }
+    }, 200);
   }
 
   // --- In-Window Project Studio Listeners ---
@@ -5607,6 +6210,21 @@
 
   if (btnPublishArtifact) {
     btnPublishArtifact.addEventListener('click', publishCurrentArtifact);
+  }
+
+  const btnArtifactToStudio = document.getElementById('btn-artifact-to-studio');
+  if (btnArtifactToStudio) {
+    btnArtifactToStudio.addEventListener('click', () => {
+      if (currentArtifact && currentArtifact.code) {
+        const art = { ...currentArtifact };
+        closeArtifact();
+        openSandboxStudio({
+          title: art.title,
+          code: art.code,
+          prompt: `Opened from artifact: ${art.title}`
+        });
+      }
+    });
   }
 
   if (btnArtifactReload) {
@@ -5809,29 +6427,1936 @@
   const sidebarBtnPlugins = document.getElementById('sidebar-btn-plugins');
   const sidebarBtnExploreApps = document.getElementById('sidebar-btn-explore-apps');
 
-  function openSandboxDirectly() {
-    if (currentArtifact && currentArtifact.code) {
-      openArtifact(currentArtifact.title, currentArtifact.code, currentArtifact.lang);
+  // --- Dedicated Web App Sandbox Studio (v0 / Bolt style) ---
+  const sandboxStudioView = document.getElementById('sandbox-studio-view');
+  const btnSandboxStudioBack = document.getElementById('btn-sandbox-studio-back');
+  const sandboxHeaderTitle = document.getElementById('sandbox-header-title');
+  const sandboxHeaderSubtitle = document.getElementById('sandbox-header-subtitle');
+  const sandboxMobileToggle = document.getElementById('sandbox-mobile-toggle');
+  const btnSandboxVpDesktop = document.getElementById('btn-sandbox-vp-desktop');
+  const btnSandboxVpMobile = document.getElementById('btn-sandbox-vp-mobile');
+  const btnSandboxReload = document.getElementById('btn-sandbox-reload');
+  const btnSandboxGithubToggle = document.getElementById('btn-sandbox-github-toggle');
+  const btnSandboxDownload = document.getElementById('btn-sandbox-download');
+  const btnSandboxPublish = document.getElementById('btn-sandbox-publish');
+  const btnSandboxNew = document.getElementById('btn-sandbox-new');
+
+  const sandboxGithubDrawer = document.getElementById('sandbox-github-drawer');
+  const btnCloseSandboxGithub = document.getElementById('btn-close-sandbox-github');
+  const sandboxGithubInput = document.getElementById('sandbox-github-input');
+  const btnSandboxGithubFetch = document.getElementById('btn-sandbox-github-fetch');
+
+  const sandboxPublishedBanner = document.getElementById('sandbox-published-banner');
+  const sandboxPublishedLink = document.getElementById('sandbox-published-link');
+  const btnCopySandboxPublishedLink = document.getElementById('btn-copy-sandbox-published-link');
+
+  const tabBtnSandboxChat = document.getElementById('tab-btn-sandbox-chat');
+  const tabBtnSandboxCode = document.getElementById('tab-btn-sandbox-code');
+  const sandboxFileCountBadge = document.getElementById('sandbox-file-count-badge');
+  const sandboxPaneChat = document.getElementById('sandbox-pane-chat');
+  const sandboxPaneCode = document.getElementById('sandbox-pane-code');
+
+  const sandboxInitialState = document.getElementById('sandbox-initial-state');
+  const sandboxInitialPrompt = document.getElementById('sandbox-initial-prompt');
+  const btnSandboxGenerate = document.getElementById('btn-sandbox-generate');
+
+  const sandboxActiveChat = document.getElementById('sandbox-active-chat');
+  const sandboxMessagesThread = document.getElementById('sandbox-messages-thread');
+  const sandboxIterationInput = document.getElementById('sandbox-iteration-input');
+  const btnSandboxIterationSubmit = document.getElementById('btn-sandbox-iteration-submit');
+  const sandboxStatusIndicator = document.getElementById('sandbox-status-indicator');
+  const sandboxStatusText = document.getElementById('sandbox-status-text');
+
+  const sandboxCodeFileTabs = document.getElementById('sandbox-code-file-tabs');
+  const sandboxCodeStats = document.getElementById('sandbox-code-stats');
+  const btnSandboxCopyCode = document.getElementById('btn-sandbox-copy-code');
+  const sandboxCodeContent = document.getElementById('sandbox-code-content');
+  const sandboxCodeEditor = document.getElementById('sandbox-code-editor');
+  const sandboxEditorGutter = document.getElementById('sandbox-editor-gutter');
+  const sandboxEditorStatus = document.getElementById('sandbox-editor-status');
+  const btnSandboxRunCode = document.getElementById('btn-sandbox-run-code');
+  const btnSandboxRevertCode = document.getElementById('btn-sandbox-revert-code');
+  const btnSandboxCodeExport = document.getElementById('btn-sandbox-code-export');
+
+  const btnSandboxHistoryToggle = document.getElementById('btn-sandbox-history-toggle');
+  const sandboxHistoryCountBadge = document.getElementById('sandbox-history-count-badge');
+  const sandboxHistoryDrawer = document.getElementById('sandbox-history-drawer');
+  const btnCloseSandboxHistory = document.getElementById('btn-close-sandbox-history');
+  const btnClearSandboxHistory = document.getElementById('btn-clear-sandbox-history');
+  const sandboxHistorySearch = document.getElementById('sandbox-history-search');
+  const sandboxHistoryList = document.getElementById('sandbox-history-list');
+  const historyTotalCount = document.getElementById('history-total-count');
+
+  const sandboxRecentBuildsSection = document.getElementById('sandbox-recent-builds-section');
+  const sandboxRecentBuildsGrid = document.getElementById('sandbox-recent-builds-grid');
+  const btnInitialViewAllHistory = document.getElementById('btn-initial-view-all-history');
+
+  const btnSandboxExportToggle = document.getElementById('btn-sandbox-export-toggle');
+  const sandboxExportModal = document.getElementById('sandbox-export-modal');
+  const btnCloseExportModal = document.getElementById('btn-close-export-modal');
+  const btnCancelExportModal = document.getElementById('btn-cancel-export-modal');
+  const exportAppTitle = document.getElementById('export-app-title');
+  const exportAppMeta = document.getElementById('export-app-meta');
+  const btnExportZip = document.getElementById('btn-export-zip');
+  const btnExportHtml = document.getElementById('btn-export-html');
+  const btnExportCodepen = document.getElementById('btn-export-codepen');
+  const btnCopyHtmlPart = document.getElementById('btn-copy-html-part');
+  const btnCopyCssPart = document.getElementById('btn-copy-css-part');
+  const btnCopyJsPart = document.getElementById('btn-copy-js-part');
+  const btnCopyAllPart = document.getElementById('btn-copy-all-part');
+
+  const sandboxPreviewStandby = document.getElementById('sandbox-preview-standby');
+  const sandboxPreviewFrameWrap = document.getElementById('sandbox-preview-frame-wrap');
+  const sandboxStudioIframe = document.getElementById('sandbox-studio-iframe');
+
+  const SANDBOX_HISTORY_STORAGE_KEY = 'omni_sandbox_history';
+  let sandboxOriginalAiCode = '';
+  let sandboxIsDirty = false;
+  let activeExportApp = null;
+
+  let currentSandboxApp = {
+    id: '',
+    title: '',
+    prompt: '',
+    code: '',
+    activeFileTab: 'all',
+    turns: [],
+    publishedUrl: null
+  };
+
+  function openSandboxStudio(initialApp = null) {
+    if (chatTopbar) chatTopbar.style.display = 'none';
+    if (messagesContainer) messagesContainer.style.display = 'none';
+    if (inputAreaWrapper) inputAreaWrapper.style.display = 'none';
+    if (btnScrollBottom) btnScrollBottom.style.display = 'none';
+    if (artifactsPane) artifactsPane.style.display = 'none';
+    if (projectStudioView) projectStudioView.style.display = 'none';
+
+    if (sandboxStudioView) {
+      sandboxStudioView.style.display = 'flex';
+    }
+
+    renderSandboxHistoryBadge();
+    renderSandboxRecentBuilds();
+
+    if (initialApp && initialApp.code) {
+      loadSandboxApp(initialApp.title || 'Web Application', initialApp.code, initialApp.prompt || '');
+    } else if (currentSandboxApp && currentSandboxApp.code) {
+      renderSandboxStudioState();
     } else {
-      openArtifact('⚡ Interactive Web Sandbox', DEFAULT_SANDBOX_STARTER, 'html');
+      // Clean initial state: NO default app!
+      resetSandboxStudio();
     }
   }
 
-  if (btnTopbarSandbox) btnTopbarSandbox.addEventListener('click', openSandboxDirectly);
-  if (sidebarBtnSandbox) sidebarBtnSandbox.addEventListener('click', openSandboxDirectly);
+  function closeSandboxStudio() {
+    if (sandboxStudioView) {
+      sandboxStudioView.style.display = 'none';
+    }
+    if (chatTopbar) chatTopbar.style.display = 'flex';
+    if (messagesContainer) messagesContainer.style.display = 'flex';
+    if (inputAreaWrapper) inputAreaWrapper.style.display = 'block';
+  }
 
-  if (btnTopbarPlugins) btnTopbarPlugins.addEventListener('click', () => openModal(pluginsModal));
-  if (sidebarBtnPlugins) sidebarBtnPlugins.addEventListener('click', () => openModal(pluginsModal));
+  function resetSandboxStudio() {
+    currentSandboxApp = {
+      id: '',
+      title: '',
+      prompt: '',
+      code: '',
+      activeFileTab: 'all',
+      turns: [],
+      publishedUrl: null
+    };
+    sandboxOriginalAiCode = '';
+    sandboxIsDirty = false;
 
+    if (sandboxHeaderTitle) sandboxHeaderTitle.textContent = 'Web App Sandbox Studio';
+    if (sandboxHeaderSubtitle) sandboxHeaderSubtitle.textContent = 'AI Codebase & Live Interactive Preview';
+
+    if (sandboxInitialState) sandboxInitialState.style.display = 'flex';
+    if (sandboxActiveChat) sandboxActiveChat.style.display = 'none';
+    if (sandboxPreviewStandby) sandboxPreviewStandby.style.display = 'flex';
+    if (sandboxPreviewFrameWrap) sandboxPreviewFrameWrap.style.display = 'none';
+    if (sandboxPublishedBanner) sandboxPublishedBanner.style.display = 'none';
+    if (sandboxGithubDrawer) sandboxGithubDrawer.style.display = 'none';
+    if (sandboxHistoryDrawer) sandboxHistoryDrawer.style.display = 'none';
+
+    if (sandboxStudioIframe) sandboxStudioIframe.srcdoc = '';
+    if (sandboxInitialPrompt) sandboxInitialPrompt.value = '';
+    if (sandboxMessagesThread) sandboxMessagesThread.innerHTML = '';
+    if (sandboxCodeContent) sandboxCodeContent.textContent = '// Your generated codebase will appear here...';
+    if (sandboxCodeEditor) sandboxCodeEditor.value = '';
+    if (sandboxFileCountBadge) sandboxFileCountBadge.textContent = '0 files';
+    if (sandboxCodeStats) sandboxCodeStats.textContent = '0 lines';
+
+    renderSandboxHistoryBadge();
+    renderSandboxRecentBuilds();
+    switchSandboxSubTab('chat');
+  }
+
+  function switchSandboxSubTab(tab) {
+    if (tab === 'chat') {
+      tabBtnSandboxChat?.classList.add('active');
+      tabBtnSandboxCode?.classList.remove('active');
+      if (sandboxPaneChat) sandboxPaneChat.style.display = 'flex';
+      if (sandboxPaneCode) sandboxPaneCode.style.display = 'none';
+    } else {
+      tabBtnSandboxCode?.classList.add('active');
+      tabBtnSandboxChat?.classList.remove('active');
+      if (sandboxPaneChat) sandboxPaneChat.style.display = 'none';
+      if (sandboxPaneCode) sandboxPaneCode.style.display = 'flex';
+      renderSandboxCodeView();
+    }
+  }
+
+  function loadSandboxApp(title, code, prompt = '', existingId = null, existingTurns = null) {
+    currentSandboxApp.id = existingId || ('sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+    currentSandboxApp.title = title || 'Interactive Web Application';
+    currentSandboxApp.prompt = prompt || (existingTurns && existingTurns[0]?.text) || '';
+    currentSandboxApp.code = code;
+    currentSandboxApp.publishedUrl = null;
+    sandboxOriginalAiCode = code;
+
+    if (existingTurns && existingTurns.length > 0) {
+      currentSandboxApp.turns = existingTurns;
+    } else if (prompt && (!currentSandboxApp.turns || currentSandboxApp.turns.length === 0)) {
+      currentSandboxApp.turns = [
+        { sender: 'user', text: prompt },
+        { sender: 'ai', text: `Generated **${currentSandboxApp.title}** with full responsive layout and interactivity.` }
+      ];
+    } else if (!currentSandboxApp.turns || currentSandboxApp.turns.length === 0) {
+      currentSandboxApp.turns = [
+        { sender: 'ai', text: `Loaded **${currentSandboxApp.title}** into Sandbox Studio.` }
+      ];
+    }
+
+    saveSandboxAppToHistory(currentSandboxApp);
+    renderSandboxStudioState();
+  }
+
+  function updateSandboxIframe(code) {
+    if (!sandboxStudioIframe) return;
+    const execHtml = prepareExecutableHtml(code, 'html');
+
+    // 1. Assign srcdoc
+    sandboxStudioIframe.srcdoc = execHtml;
+
+    // 2. Also assign Blob URL for instant rendering across all browser engines
+    try {
+      const blob = new Blob([execHtml], { type: 'text/html;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      sandboxStudioIframe.src = blobUrl;
+    } catch (e) {
+      // Fallback relies on srcdoc
+    }
+  }
+
+  function renderSandboxStudioState() {
+    if (!currentSandboxApp.code) {
+      resetSandboxStudio();
+      return;
+    }
+
+    if (sandboxHeaderTitle) sandboxHeaderTitle.textContent = currentSandboxApp.title;
+    if (sandboxHeaderSubtitle) sandboxHeaderSubtitle.textContent = 'Live Interactive Preview Active';
+
+    if (sandboxInitialState) sandboxInitialState.style.display = 'none';
+    if (sandboxActiveChat) sandboxActiveChat.style.display = 'flex';
+    if (sandboxPreviewStandby) sandboxPreviewStandby.style.display = 'none';
+    if (sandboxPreviewFrameWrap) sandboxPreviewFrameWrap.style.display = 'flex';
+
+    if (sandboxStudioIframe) {
+      updateSandboxIframe(currentSandboxApp.code);
+    }
+
+    renderSandboxMessages();
+    renderSandboxCodeView();
+  }
+
+  function renderSandboxMessages() {
+    if (!sandboxMessagesThread) return;
+    sandboxMessagesThread.innerHTML = '';
+
+    currentSandboxApp.turns.forEach(turn => {
+      const bubble = document.createElement('div');
+      bubble.className = `sandbox-chat-bubble ${turn.sender === 'user' ? 'user-bubble' : 'ai-bubble'}`;
+
+      if (turn.sender === 'user') {
+        bubble.textContent = turn.text;
+      } else {
+        const header = document.createElement('div');
+        header.className = 'sandbox-building-header';
+        header.style.marginBottom = '0.5rem';
+        header.innerHTML = `
+          <div class="sandbox-building-icon-wrap" style="width:24px;height:24px;font-size:0.75rem;background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.3);animation:none;">✓</div>
+          <div class="sandbox-building-title" style="font-size:0.85rem;color:var(--text-primary);">${escapeHtml(currentSandboxApp.title || 'AI Web App Architect')}</div>
+        `;
+        bubble.appendChild(header);
+
+        const textSpan = document.createElement('div');
+        textSpan.innerHTML = formatMarkdown(turn.text);
+        bubble.appendChild(textSpan);
+
+        const fileBadge = document.createElement('div');
+        fileBadge.className = 'sandbox-card-files';
+        fileBadge.style.marginTop = '0.5rem';
+        fileBadge.innerHTML = `
+          <span class="sandbox-file-generation-badge">📄 index.html</span>
+          <span class="sandbox-file-generation-badge">🎨 style.css</span>
+          <span class="sandbox-file-generation-badge">⚡ script.js</span>
+        `;
+        bubble.appendChild(fileBadge);
+      }
+
+      sandboxMessagesThread.appendChild(bubble);
+    });
+
+    sandboxMessagesThread.scrollTop = sandboxMessagesThread.scrollHeight;
+  }
+
+  function extractCodeSection(code, type) {
+    if (!code) return '';
+    if (type === 'css') {
+      const styleMatches = code.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+      if (styleMatches && styleMatches.length > 0) {
+        return styleMatches.map(m => m.replace(/<\/?style[^>]*>/gi, '').trim()).join('\n\n');
+      }
+      return '/* No internal <style> blocks detected. */';
+    }
+    if (type === 'js') {
+      const scriptMatches = code.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
+      if (scriptMatches && scriptMatches.length > 0) {
+        return scriptMatches.map(m => m.replace(/<\/?script[^>]*>/gi, '').trim()).join('\n\n');
+      }
+      return '// No internal <script> blocks detected.';
+    }
+    if (type === 'html') {
+      return code.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '<!-- Styles in style.css -->')
+                 .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '<!-- Scripts in script.js -->');
+    }
+    return code;
+  }
+
+  function formatRelativeTime(timestamp) {
+    if (!timestamp) return 'Just now';
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function getSandboxHistory() {
+    try {
+      const raw = localStorage.getItem(SANDBOX_HISTORY_STORAGE_KEY);
+      if (!raw) return [];
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveSandboxAppToHistory(appData) {
+    if (!appData || !appData.code) return;
+    const history = getSandboxHistory();
+    const id = appData.id || ('sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+    appData.id = id;
+
+    const existingIndex = history.findIndex(item => item.id === id);
+    const historyEntry = {
+      id,
+      title: appData.title || 'Web Application',
+      prompt: appData.prompt || (appData.turns && appData.turns[0]?.text) || 'Interactive Web Application',
+      code: appData.code,
+      createdAt: existingIndex !== -1 ? (history[existingIndex].createdAt || Date.now()) : Date.now(),
+      updatedAt: Date.now(),
+      turns: appData.turns || [],
+      publishedUrl: appData.publishedUrl || null
+    };
+
+    if (existingIndex !== -1) {
+      history[existingIndex] = historyEntry;
+    } else {
+      history.unshift(historyEntry);
+    }
+
+    if (history.length > 50) history.length = 50;
+
+    try {
+      localStorage.setItem(SANDBOX_HISTORY_STORAGE_KEY, JSON.stringify(history));
+      if (typeof puter !== 'undefined' && puter.auth?.isSignedIn() && puter.kv) {
+        puter.kv.set(SANDBOX_HISTORY_STORAGE_KEY, history).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Failed to save sandbox history:', e);
+    }
+
+    renderSandboxHistoryBadge();
+    renderSandboxRecentBuilds();
+  }
+
+  function deleteSandboxHistoryItem(id) {
+    let history = getSandboxHistory();
+    history = history.filter(item => item.id !== id);
+    try {
+      localStorage.setItem(SANDBOX_HISTORY_STORAGE_KEY, JSON.stringify(history));
+      if (typeof puter !== 'undefined' && puter.auth?.isSignedIn() && puter.kv) {
+        puter.kv.set(SANDBOX_HISTORY_STORAGE_KEY, history).catch(() => {});
+      }
+    } catch (e) {}
+    renderSandboxHistoryBadge();
+    renderSandboxHistoryList(sandboxHistorySearch?.value || '');
+    renderSandboxRecentBuilds();
+    showToast('Application deleted from history.');
+  }
+
+  function clearSandboxHistory() {
+    if (!confirm('Clear all web app build history? This cannot be undone.')) return;
+    try {
+      localStorage.removeItem(SANDBOX_HISTORY_STORAGE_KEY);
+      if (typeof puter !== 'undefined' && puter.auth?.isSignedIn() && puter.kv) {
+        puter.kv.del(SANDBOX_HISTORY_STORAGE_KEY).catch(() => {});
+      }
+    } catch (e) {}
+    renderSandboxHistoryBadge();
+    renderSandboxHistoryList();
+    renderSandboxRecentBuilds();
+    showToast('Build history cleared.');
+  }
+
+  function loadSandboxFromHistory(id) {
+    const history = getSandboxHistory();
+    const item = history.find(h => h.id === id);
+    if (!item) {
+      showToast('App not found in history.');
+      return;
+    }
+    loadSandboxApp(item.title, item.code, item.prompt, item.id, item.turns);
+    closeSandboxHistoryDrawer();
+    showToast(`Loaded "${item.title}" into Sandbox Studio!`);
+  }
+
+  function renderSandboxHistoryBadge() {
+    if (!sandboxHistoryCountBadge) return;
+    const count = getSandboxHistory().length;
+    if (count > 0) {
+      sandboxHistoryCountBadge.textContent = count > 99 ? '99+' : String(count);
+      sandboxHistoryCountBadge.style.display = 'inline-flex';
+    } else {
+      sandboxHistoryCountBadge.style.display = 'none';
+    }
+  }
+
+  function renderSandboxHistoryList(query = '') {
+    if (!sandboxHistoryList) return;
+    const history = getSandboxHistory();
+    const q = (query || '').toLowerCase().trim();
+    const filtered = q
+      ? history.filter(h => (h.title || '').toLowerCase().includes(q) || (h.prompt || '').toLowerCase().includes(q))
+      : history;
+
+    if (historyTotalCount) {
+      historyTotalCount.textContent = `${history.length} app${history.length === 1 ? '' : 's'}`;
+    }
+
+    if (filtered.length === 0) {
+      sandboxHistoryList.innerHTML = `
+        <div class="history-empty-placeholder">
+          ${q ? 'No applications match your search query.' : 'No past applications yet. Describe any web app to generate your first build!'}
+        </div>
+      `;
+      return;
+    }
+
+    sandboxHistoryList.innerHTML = '';
+    filtered.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'history-app-card';
+      const lines = (item.code || '').split('\n').length;
+      const relativeTime = formatRelativeTime(item.updatedAt || item.createdAt);
+
+      card.innerHTML = `
+        <div class="history-card-header">
+          <div class="history-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title || 'Untitled App')}</div>
+          <span style="font-size:0.72rem;color:var(--accent-color);font-weight:600;">${lines} lines</span>
+        </div>
+        <div class="history-card-prompt" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt || 'No description')}</div>
+        <div class="history-card-meta">
+          <span>🕒 ${relativeTime}</span>
+          <span>3 files (HTML/CSS/JS)</span>
+        </div>
+        <div class="history-card-actions">
+          <button class="btn-primary btn-xs btn-open-history-app" data-id="${item.id}" type="button">Open App</button>
+          <button class="btn-secondary btn-xs btn-export-history-app" data-id="${item.id}" type="button" title="Export Codebase">Export</button>
+          <button class="icon-btn-xs btn-delete-history-app" data-id="${item.id}" type="button" title="Delete app from history" style="margin-left:auto;color:var(--text-muted);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      `;
+      sandboxHistoryList.appendChild(card);
+    });
+  }
+
+  function renderSandboxRecentBuilds() {
+    if (!sandboxRecentBuildsSection || !sandboxRecentBuildsGrid) return;
+    const history = getSandboxHistory();
+    if (history.length === 0) {
+      sandboxRecentBuildsSection.style.display = 'none';
+      return;
+    }
+
+    sandboxRecentBuildsSection.style.display = 'flex';
+    sandboxRecentBuildsGrid.innerHTML = '';
+    const recent = history.slice(0, 4);
+
+    recent.forEach(item => {
+      const chip = document.createElement('div');
+      chip.className = 'recent-build-chip';
+      chip.setAttribute('data-id', item.id);
+      chip.innerHTML = `
+        <div class="recent-build-chip-title">⚡ ${escapeHtml(item.title || 'Web App')}</div>
+        <div class="recent-build-chip-time">${formatRelativeTime(item.updatedAt || item.createdAt)} • ${(item.code || '').split('\n').length} lines</div>
+      `;
+      chip.addEventListener('click', () => {
+        loadSandboxFromHistory(item.id);
+      });
+      sandboxRecentBuildsGrid.appendChild(chip);
+    });
+  }
+
+  function openSandboxHistoryDrawer() {
+    if (sandboxGithubDrawer) sandboxGithubDrawer.style.display = 'none';
+    if (sandboxHistoryDrawer) {
+      sandboxHistoryDrawer.style.display = 'flex';
+      renderSandboxHistoryList();
+      if (sandboxHistorySearch) {
+        sandboxHistorySearch.value = '';
+        setTimeout(() => sandboxHistorySearch.focus(), 60);
+      }
+    }
+  }
+
+  function closeSandboxHistoryDrawer() {
+    if (sandboxHistoryDrawer) sandboxHistoryDrawer.style.display = 'none';
+  }
+
+  function toggleSandboxHistoryDrawer() {
+    if (!sandboxHistoryDrawer) return;
+    if (sandboxHistoryDrawer.style.display === 'none' || !sandboxHistoryDrawer.style.display) {
+      openSandboxHistoryDrawer();
+    } else {
+      closeSandboxHistoryDrawer();
+    }
+  }
+
+  function openSandboxExportModal(app = null) {
+    activeExportApp = app || currentSandboxApp;
+    if (!activeExportApp || !activeExportApp.code) {
+      showToast('No application code to export.');
+      return;
+    }
+
+    if (exportAppTitle) exportAppTitle.textContent = activeExportApp.title || 'Web Application';
+    const lines = (activeExportApp.code || '').split('\n').length;
+    if (exportAppMeta) exportAppMeta.textContent = `3 files (index.html, style.css, script.js) • ${lines} lines compiled`;
+
+    if (sandboxExportModal) sandboxExportModal.style.display = 'flex';
+  }
+
+  function closeSandboxExportModal() {
+    if (sandboxExportModal) sandboxExportModal.style.display = 'none';
+  }
+
+  async function exportMultiFileZip() {
+    const app = activeExportApp || currentSandboxApp;
+    if (!app || !app.code) return;
+
+    if (typeof JSZip === 'undefined') {
+      showToast('JSZip not ready. Downloading index.html fallback...');
+      exportStandaloneHtml();
+      return;
+    }
+
+    try {
+      const zip = new JSZip();
+      const code = app.code;
+      const css = extractCodeSection(code, 'css');
+      const js = extractCodeSection(code, 'js');
+
+      let cleanHtml = code
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
+      if (/<\/head>/i.test(cleanHtml)) {
+        cleanHtml = cleanHtml.replace(/<\/head>/i, '  <link rel="stylesheet" href="style.css">\n</head>');
+      } else {
+        cleanHtml = '<link rel="stylesheet" href="style.css">\n' + cleanHtml;
+      }
+      if (/<\/body>/i.test(cleanHtml)) {
+        cleanHtml = cleanHtml.replace(/<\/body>/i, '  <script src="script.js"></script>\n</body>');
+      } else {
+        cleanHtml = cleanHtml + '\n<script src="script.js"></script>';
+      }
+
+      zip.file("index.html", cleanHtml);
+      zip.file("style.css", css || '/* Styles */\n');
+      zip.file("script.js", js || '// Interactive Logic\n');
+      zip.file("README.md", `# ${app.title || 'Web Application'}
+
+${app.prompt || 'Generated with Omni Chat Web App Sandbox Studio.'}
+
+## Project Structure
+- \`index.html\` — Application markup
+- \`style.css\` — Styling and responsive layout
+- \`script.js\` — Interactive JavaScript logic
+
+## How to Run
+Simply open \`index.html\` in any web browser, or launch with any local static server:
+\`\`\`bash
+npx serve .
+\`\`\`
+`);
+      zip.file("package.json", JSON.stringify({
+        name: (app.title || 'web-app').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        version: "1.0.0",
+        description: app.title,
+        scripts: {
+          start: "npx serve ."
+        }
+      }, null, 2));
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const slug = (app.title || 'web-app').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'web-app';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${slug}-codebase.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      closeSandboxExportModal();
+      showToast(`📦 Downloaded ${slug}-codebase.zip!`);
+    } catch (err) {
+      console.error('Failed to generate ZIP:', err);
+      showToast('Export error: ' + (err.message || 'Could not create ZIP'));
+    }
+  }
+
+  function exportStandaloneHtml() {
+    const app = activeExportApp || currentSandboxApp;
+    if (!app || !app.code) return;
+    const blob = new Blob([app.code], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const slug = (app.title || 'web-app').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'web-app';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slug}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    closeSandboxExportModal();
+    showToast(`📄 Downloaded ${slug}.html!`);
+  }
+
+  function exportToCodePen() {
+    const app = activeExportApp || currentSandboxApp;
+    if (!app || !app.code) return;
+    const css = extractCodeSection(app.code, 'css');
+    const js = extractCodeSection(app.code, 'js');
+    const html = app.code
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<!DOCTYPE html>/i, '')
+      .replace(/<html[^>]*>|<\/html>/gi, '')
+      .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+      .replace(/<body[^>]*>|<\/body>/gi, '')
+      .trim();
+
+    const data = JSON.stringify({
+      title: app.title || 'Web Application',
+      description: app.prompt || 'Built with Omni Chat Sandbox Studio',
+      html,
+      css,
+      js
+    });
+
+    const form = document.createElement('form');
+    form.action = 'https://codepen.io/pen/define';
+    form.method = 'POST';
+    form.target = '_blank';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'data';
+    input.value = data;
+
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+
+    closeSandboxExportModal();
+    showToast('🚀 Opening codebase in CodePen!');
+  }
+
+  function copyCodePart(part) {
+    const app = activeExportApp || currentSandboxApp;
+    if (!app || !app.code) return;
+    let text = '';
+    if (part === 'all') text = app.code;
+    else text = extractCodeSection(app.code, part);
+
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(`Copied ${part.toUpperCase()} to clipboard!`);
+    }).catch(() => {
+      showToast('Could not copy to clipboard');
+    });
+  }
+
+  function setSandboxEditorStatus(state) {
+    if (!sandboxEditorStatus) return;
+    sandboxEditorStatus.className = `sandbox-editor-status ${state}`;
+    if (state === 'unsaved') {
+      sandboxEditorStatus.textContent = '● Unsaved (⌘S)';
+    } else if (state === 'saved') {
+      sandboxEditorStatus.textContent = '✓ Saved & Running';
+    } else {
+      sandboxEditorStatus.textContent = 'Ready';
+    }
+  }
+
+  function updateEditorGutter() {
+    if (!sandboxEditorGutter || !sandboxCodeEditor) return;
+    const count = (sandboxCodeEditor.value || '').split('\n').length;
+    let numbers = '';
+    for (let i = 1; i <= count; i++) {
+      numbers += i + '\n';
+    }
+    sandboxEditorGutter.textContent = numbers;
+    sandboxEditorGutter.scrollTop = sandboxCodeEditor.scrollTop;
+  }
+
+  function mergeEditorCodeIntoApp(val, tab) {
+    if (!currentSandboxApp.code) {
+      currentSandboxApp.code = val;
+      return;
+    }
+    if (tab === 'all') {
+      currentSandboxApp.code = val;
+    } else if (tab === 'css') {
+      if (/<style[^>]*>[\s\S]*?<\/style>/i.test(currentSandboxApp.code)) {
+        currentSandboxApp.code = currentSandboxApp.code.replace(/<style[^>]*>[\s\S]*?<\/style>/i, `<style>\n${val}\n</style>`);
+      } else if (/<\/head>/i.test(currentSandboxApp.code)) {
+        currentSandboxApp.code = currentSandboxApp.code.replace(/<\/head>/i, `  <style>\n${val}\n  </style>\n</head>`);
+      } else {
+        currentSandboxApp.code = `<style>\n${val}\n</style>\n` + currentSandboxApp.code;
+      }
+    } else if (tab === 'js') {
+      if (/<script[^>]*>[\s\S]*?<\/script>/i.test(currentSandboxApp.code)) {
+        currentSandboxApp.code = currentSandboxApp.code.replace(/<script[^>]*>[\s\S]*?<\/script>/i, `<script>\n${val}\n</script>`);
+      } else if (/<\/body>/i.test(currentSandboxApp.code)) {
+        currentSandboxApp.code = currentSandboxApp.code.replace(/<\/body>/i, `  <script>\n${val}\n  </script>\n</body>`);
+      } else {
+        currentSandboxApp.code = currentSandboxApp.code + `\n<script>\n${val}\n</script>`;
+      }
+    } else if (tab === 'html') {
+      const existingCss = extractCodeSection(currentSandboxApp.code, 'css');
+      const existingJs = extractCodeSection(currentSandboxApp.code, 'js');
+      let combined = val;
+      if (existingCss && !combined.includes('<style')) {
+        if (/<\/head>/i.test(combined)) {
+          combined = combined.replace(/<\/head>/i, `  <style>\n${existingCss}\n  </style>\n</head>`);
+        } else {
+          combined = `<style>\n${existingCss}\n</style>\n` + combined;
+        }
+      }
+      if (existingJs && !combined.includes('<script')) {
+        if (/<\/body>/i.test(combined)) {
+          combined = combined.replace(/<\/body>/i, `  <script>\n${existingJs}\n  </script>\n</body>`);
+        } else {
+          combined = combined + `\n<script>\n${existingJs}\n</script>`;
+        }
+      }
+      currentSandboxApp.code = combined;
+    }
+  }
+
+  function applyManualCodeEdits() {
+    if (!sandboxCodeEditor) return;
+    const tab = currentSandboxApp.activeFileTab || 'all';
+    const val = sandboxCodeEditor.value;
+
+    mergeEditorCodeIntoApp(val, tab);
+    updateSandboxIframe(currentSandboxApp.code);
+    saveSandboxAppToHistory(currentSandboxApp);
+
+    sandboxIsDirty = false;
+    setSandboxEditorStatus('saved');
+    const lines = (currentSandboxApp.code || '').split('\n').length;
+    if (sandboxCodeStats) sandboxCodeStats.textContent = `${lines} lines`;
+    showToast('✨ Code compiled and live preview updated!');
+  }
+
+  function renderSandboxCodeView() {
+    if (!sandboxCodeContent && !sandboxCodeEditor) return;
+    const tab = currentSandboxApp.activeFileTab || 'all';
+    const displayCode = extractCodeSection(currentSandboxApp.code, tab);
+
+    if (sandboxCodeContent) {
+      sandboxCodeContent.textContent = displayCode || '// No code available';
+    }
+    if (sandboxCodeEditor) {
+      sandboxCodeEditor.value = displayCode || '';
+      updateEditorGutter();
+    }
+
+    const lines = (displayCode || '').split('\n').length;
+    if (sandboxCodeStats) sandboxCodeStats.textContent = `${lines} lines`;
+    if (sandboxFileCountBadge) sandboxFileCountBadge.textContent = '3 files';
+    sandboxIsDirty = false;
+    setSandboxEditorStatus('ready');
+  }
+
+  async function extractAiContent(resp) {
+    if (!resp) return '';
+    if (typeof resp === 'string') return resp;
+
+    // Check if it's an async iterable
+    if (typeof resp[Symbol.asyncIterator] === 'function') {
+      let acc = '';
+      for await (const chunk of resp) {
+        if (typeof chunk === 'string') acc += chunk;
+        else if (chunk?.text) acc += chunk.text;
+        else if (typeof chunk?.message?.content === 'string') acc += chunk.message.content;
+        else if (Array.isArray(chunk?.message?.content)) {
+          acc += chunk.message.content.map(c => c.text || '').join('');
+        }
+      }
+      return acc;
+    }
+
+    if (typeof resp.text === 'string' && resp.text) return resp.text;
+
+    if (resp.message) {
+      if (typeof resp.message.content === 'string') return resp.message.content;
+      if (Array.isArray(resp.message.content)) {
+        return resp.message.content.map(c => c.text || '').join('');
+      }
+    }
+
+    if (resp.choices && resp.choices[0]?.message) {
+      const c = resp.choices[0].message.content;
+      if (typeof c === 'string') return c;
+      if (Array.isArray(c)) return c.map(part => part.text || '').join('');
+    }
+
+    return typeof resp === 'object' ? JSON.stringify(resp) : String(resp);
+  }
+
+  function extractExecutableCode(rawResponse, prompt = 'Web Application') {
+    if (!rawResponse || typeof rawResponse !== 'string') return '';
+    const trimmed = rawResponse.trim();
+
+    // 1. Match code blocks ```html ... ``` or ``` ... ```
+    const codeMatch = trimmed.match(/```(?:html|htm|xml)?\s*\n?([\s\S]*?)```/i);
+    if (codeMatch && codeMatch[1] && codeMatch[1].trim()) {
+      return codeMatch[1].trim();
+    }
+
+    // 2. Match raw HTML tags starting with <!DOCTYPE or <html
+    const htmlStart = trimmed.search(/<!DOCTYPE\s+html|<html[\s>]/i);
+    if (htmlStart !== -1) {
+      const htmlEnd = trimmed.toLowerCase().lastIndexOf('</html>');
+      if (htmlEnd !== -1) {
+        return trimmed.slice(htmlStart, htmlEnd + 7).trim();
+      }
+      return trimmed.slice(htmlStart).trim();
+    }
+
+    // 3. If it contains generic HTML tags, use it directly
+    if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+      return trimmed;
+    }
+
+    // 4. Fallback: wrap raw response in a clean modern template
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(prompt)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f1117; color: #fff; padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; box-sizing: border-box; text-align: center; }
+    .card { background: #1a1d27; border: 1px solid #2d3139; border-radius: 12px; padding: 1.5rem 2rem; max-width: 520px; width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    h2 { margin-top: 0; color: #60a5fa; font-size: 1.35rem; }
+    p { color: #cbd5e1; line-height: 1.6; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>${escapeHtml(prompt)}</h2>
+    <p>${escapeHtml(trimmed)}</p>
+  </div>
+</body>
+</html>`;
+  }
+
+  async function handleSandboxInitialGenerate(customPrompt = '') {
+    const prompt = (customPrompt || sandboxInitialPrompt?.value || '').trim();
+    if (!prompt) {
+      showToast('Please describe the web app you want to build.');
+      if (sandboxInitialPrompt) sandboxInitialPrompt.focus();
+      return;
+    }
+
+    // Immediately transition the UI to active chat and preview pane!
+    if (sandboxInitialState) sandboxInitialState.style.display = 'none';
+    if (sandboxActiveChat) sandboxActiveChat.style.display = 'flex';
+    if (sandboxPreviewStandby) sandboxPreviewStandby.style.display = 'none';
+    if (sandboxPreviewFrameWrap) sandboxPreviewFrameWrap.style.display = 'flex';
+    switchSandboxSubTab('chat');
+
+    const words = prompt.split(/\s+/).slice(0, 4).join(' ');
+    const tentativeTitle = words ? (words.charAt(0).toUpperCase() + words.slice(1)) : 'Web Application';
+
+    if (sandboxHeaderTitle) sandboxHeaderTitle.textContent = tentativeTitle;
+    if (sandboxHeaderSubtitle) sandboxHeaderSubtitle.textContent = 'Generating files & compiling live preview...';
+
+    // 1. Add user prompt bubble in chat thread
+    if (sandboxMessagesThread) {
+      sandboxMessagesThread.innerHTML = '';
+      const userBubble = document.createElement('div');
+      userBubble.className = 'sandbox-chat-bubble user-bubble';
+      userBubble.textContent = prompt;
+      sandboxMessagesThread.appendChild(userBubble);
+    }
+
+    // 2. Add live building card in chat thread
+    const builderCard = document.createElement('div');
+    builderCard.className = 'sandbox-building-card';
+    builderCard.innerHTML = `
+      <div class="sandbox-building-header">
+        <div class="sandbox-building-icon-wrap" id="sb-build-icon">⚡</div>
+        <div>
+          <div class="sandbox-building-title" id="sb-build-title">AI Web App Architect</div>
+          <div style="font-size:0.75rem; color:var(--text-secondary);" id="sb-build-subtitle">Analyzing prompt & planning web application...</div>
+        </div>
+      </div>
+
+      <div class="sandbox-building-steps">
+        <div class="sandbox-step-row active" id="sb-step-arch">
+          <span class="sandbox-step-icon">🔍</span>
+          <span>Analyzing prompt & planning application architecture</span>
+        </div>
+        <div class="sandbox-step-row" id="sb-step-html">
+          <span class="sandbox-step-icon">⏳</span>
+          <span>Scaffolding structure & semantics (<strong>index.html</strong>)</span>
+        </div>
+        <div class="sandbox-step-row" id="sb-step-css">
+          <span class="sandbox-step-icon">⏳</span>
+          <span>Designing responsive styles & theme (<strong>style.css</strong>)</span>
+        </div>
+        <div class="sandbox-step-row" id="sb-step-js">
+          <span class="sandbox-step-icon">⏳</span>
+          <span>Implementing interactive logic (<strong>script.js</strong>)</span>
+        </div>
+        <div class="sandbox-step-row" id="sb-step-compile">
+          <span class="sandbox-step-icon">⏳</span>
+          <span>Compiling code into live iframe runtime</span>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:2px;" id="sb-files-badge-bar">
+        <span class="sandbox-file-generation-badge" id="sb-badge-html" style="opacity:0.45;">📄 index.html</span>
+        <span class="sandbox-file-generation-badge" id="sb-badge-css" style="opacity:0.45;">🎨 style.css</span>
+        <span class="sandbox-file-generation-badge" id="sb-badge-js" style="opacity:0.45;">⚡ script.js</span>
+      </div>
+
+      <div class="sandbox-live-stream-log" id="sb-stream-log">// Connecting to AI model...</div>
+    `;
+    if (sandboxMessagesThread) {
+      sandboxMessagesThread.appendChild(builderCard);
+      sandboxMessagesThread.scrollTop = sandboxMessagesThread.scrollHeight;
+    }
+
+    // 3. Mount compiling overlay on preview frame
+    let previewOverlay = sandboxPreviewFrameWrap ? sandboxPreviewFrameWrap.querySelector('.sandbox-preview-compiling-overlay') : null;
+    if (!previewOverlay && sandboxPreviewFrameWrap) {
+      previewOverlay = document.createElement('div');
+      previewOverlay.className = 'sandbox-preview-compiling-overlay';
+      previewOverlay.innerHTML = `
+        <div class="sandbox-compiling-pulse-ring"></div>
+        <div class="sandbox-compiling-text">Compiling Web Application...</div>
+        <div class="sandbox-compiling-sub">Generating HTML, CSS, & JS assets live in sandbox runtime</div>
+      `;
+      sandboxPreviewFrameWrap.appendChild(previewOverlay);
+    }
+    if (previewOverlay) {
+      const textEl = previewOverlay.querySelector('.sandbox-compiling-text');
+      if (textEl) textEl.textContent = 'Compiling Web Application...';
+      previewOverlay.style.display = 'flex';
+    }
+
+    if (btnSandboxGenerate) {
+      btnSandboxGenerate.disabled = true;
+      btnSandboxGenerate.innerHTML = `<span class="spinner-sm"></span> Building...`;
+    }
+
+    try {
+      const systemPrompt = `You are an expert full-stack web developer and UI designer.
+Build a complete, fully functional, modern single-file HTML web application based on this request:
+"${prompt}"
+
+Rules:
+1. Return the complete application inside a single html code block (\`\`\`html ... \`\`\`).
+2. Include complete inline CSS (or modern Tailwind CSS via CDN: <script src="https://cdn.tailwindcss.com"></script>) and vanilla JavaScript inside <style> and <script> tags.
+3. Make it visually beautiful, responsive, and fully interactive with error-free JavaScript.
+4. No placeholder comments or incomplete snippets. Return working code ready to run directly in an iframe sandbox.`;
+
+      if (typeof puter === 'undefined' || !puter.ai || typeof puter.ai.chat !== 'function') {
+        throw new Error('Puter AI SDK not available');
+      }
+
+      const chosenModel = settings.selectedModel || DEFAULT_MODEL;
+      const idLower = (chosenModel || '').toLowerCase();
+      const isReasoning = idLower.includes('reason') || idLower.includes('r1') || idLower.includes('argon') || idLower.startsWith('o1') || idLower.startsWith('o3');
+
+      const chatOptions = {
+        model: chosenModel,
+        stream: true
+      };
+      if (!isReasoning && typeof settings.temperature === 'number') {
+        chatOptions.temperature = 0.7;
+      }
+
+      const streamLog = builderCard.querySelector('#sb-stream-log');
+      const stepArch = builderCard.querySelector('#sb-step-arch');
+      const stepHtml = builderCard.querySelector('#sb-step-html');
+      const stepCss = builderCard.querySelector('#sb-step-css');
+      const stepJs = builderCard.querySelector('#sb-step-js');
+      const stepCompile = builderCard.querySelector('#sb-step-compile');
+      const badgeHtml = builderCard.querySelector('#sb-badge-html');
+      const badgeCss = builderCard.querySelector('#sb-badge-css');
+      const badgeJs = builderCard.querySelector('#sb-badge-js');
+
+      // Update architectural step to done and html step to active
+      if (stepArch) {
+        stepArch.className = 'sandbox-step-row completed';
+        const icon = stepArch.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+      if (stepHtml) {
+        stepHtml.className = 'sandbox-step-row active';
+        const icon = stepHtml.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '⚡';
+      }
+      if (badgeHtml) {
+        badgeHtml.style.opacity = '1';
+        badgeHtml.style.borderColor = 'var(--accent-color)';
+      }
+
+      const resp = await puter.ai.chat(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        chatOptions
+      );
+
+      let rawResponse = '';
+      let hasCssStarted = false;
+      let hasJsStarted = false;
+
+      if (resp && typeof resp[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of resp) {
+          const text = chunk?.text || (typeof chunk === 'string' ? chunk : (chunk?.message?.content || ''));
+          if (text) {
+            rawResponse += text;
+            if (streamLog) {
+              streamLog.textContent = rawResponse.slice(-500);
+              streamLog.scrollTop = streamLog.scrollHeight;
+            }
+
+            if (!hasCssStarted && (rawResponse.includes('<style') || rawResponse.includes('class="') || rawResponse.includes('tailwindcss'))) {
+              hasCssStarted = true;
+              if (stepHtml) {
+                stepHtml.className = 'sandbox-step-row completed';
+                const icon = stepHtml.querySelector('.sandbox-step-icon');
+                if (icon) icon.textContent = '✓';
+              }
+              if (stepCss) {
+                stepCss.className = 'sandbox-step-row active';
+                const icon = stepCss.querySelector('.sandbox-step-icon');
+                if (icon) icon.textContent = '⚡';
+              }
+              if (badgeCss) {
+                badgeCss.style.opacity = '1';
+                badgeCss.style.borderColor = 'var(--accent-color)';
+              }
+            }
+
+            if (!hasJsStarted && (rawResponse.includes('<script') || rawResponse.includes('addEventListener') || rawResponse.includes('function ') || rawResponse.includes('const ') || rawResponse.includes('let '))) {
+              hasJsStarted = true;
+              if (stepCss) {
+                stepCss.className = 'sandbox-step-row completed';
+                const icon = stepCss.querySelector('.sandbox-step-icon');
+                if (icon) icon.textContent = '✓';
+              }
+              if (stepJs) {
+                stepJs.className = 'sandbox-step-row active';
+                const icon = stepJs.querySelector('.sandbox-step-icon');
+                if (icon) icon.textContent = '⚡';
+              }
+              if (badgeJs) {
+                badgeJs.style.opacity = '1';
+                badgeJs.style.borderColor = 'var(--accent-color)';
+              }
+            }
+
+            if (sandboxMessagesThread) {
+              sandboxMessagesThread.scrollTop = sandboxMessagesThread.scrollHeight;
+            }
+          }
+        }
+      } else {
+        rawResponse = await extractAiContent(resp);
+      }
+
+      // Mark JS & compile step
+      if (stepHtml) {
+        stepHtml.className = 'sandbox-step-row completed';
+        const icon = stepHtml.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+      if (stepCss) {
+        stepCss.className = 'sandbox-step-row completed';
+        const icon = stepCss.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+      if (stepJs) {
+        stepJs.className = 'sandbox-step-row completed';
+        const icon = stepJs.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+      if (stepCompile) {
+        stepCompile.className = 'sandbox-step-row active';
+        const icon = stepCompile.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '⚡';
+      }
+
+      const generatedCode = extractExecutableCode(rawResponse, prompt);
+      const appTitle = tentativeTitle;
+
+      // Update runtime iframe
+      updateSandboxIframe(generatedCode);
+
+      if (stepCompile) {
+        stepCompile.className = 'sandbox-step-row completed';
+        const icon = stepCompile.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+
+      // Set titles
+      if (sandboxHeaderTitle) sandboxHeaderTitle.textContent = appTitle;
+      if (sandboxHeaderSubtitle) sandboxHeaderSubtitle.textContent = 'Live Interactive Preview Active';
+
+      // Hide compiling overlay
+      setTimeout(() => {
+        if (previewOverlay) previewOverlay.style.display = 'none';
+      }, 300);
+
+      // Save state
+      currentSandboxApp.id = 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      currentSandboxApp.title = appTitle;
+      currentSandboxApp.prompt = prompt;
+      currentSandboxApp.code = generatedCode;
+      currentSandboxApp.publishedUrl = null;
+      sandboxOriginalAiCode = generatedCode;
+      currentSandboxApp.turns = [
+        { sender: 'user', text: prompt },
+        { sender: 'ai', text: `Generated **${appTitle}** with responsive layout, custom styling, and interactive JavaScript.` }
+      ];
+
+      saveSandboxAppToHistory(currentSandboxApp);
+
+      // Finalize the builder card header & stream log
+      const buildIcon = builderCard.querySelector('#sb-build-icon');
+      const buildTitle = builderCard.querySelector('#sb-build-title');
+      const buildSubtitle = builderCard.querySelector('#sb-build-subtitle');
+      if (buildIcon) {
+        buildIcon.textContent = '✅';
+        buildIcon.style.background = 'rgba(16, 185, 129, 0.2)';
+        buildIcon.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        buildIcon.style.animation = 'none';
+      }
+      if (buildTitle) {
+        buildTitle.textContent = `${appTitle} — Ready`;
+        buildTitle.style.color = '#10b981';
+      }
+      if (buildSubtitle) {
+        buildSubtitle.textContent = 'All 3 files compiled & running in live sandbox runtime';
+      }
+      if (streamLog) {
+        streamLog.textContent = `// Build succeeded: ${generatedCode.split('\n').length} lines compiled.`;
+      }
+
+      renderSandboxCodeView();
+      showToast('✨ Web application generated and running live!');
+    } catch (err) {
+      console.error('Failed to generate sandbox app:', err);
+      showToast('Failed to generate app: ' + (err.message || 'Unknown error'));
+      if (previewOverlay) previewOverlay.style.display = 'none';
+
+      const buildIcon = builderCard.querySelector('#sb-build-icon');
+      const buildTitle = builderCard.querySelector('#sb-build-title');
+      const buildSubtitle = builderCard.querySelector('#sb-build-subtitle');
+      const streamLog = builderCard.querySelector('#sb-stream-log');
+      if (buildIcon) {
+        buildIcon.textContent = '⚠️';
+        buildIcon.style.animation = 'none';
+      }
+      if (buildTitle) {
+        buildTitle.textContent = 'Build Failed';
+        buildTitle.style.color = 'var(--danger-color)';
+      }
+      if (buildSubtitle) {
+        buildSubtitle.textContent = err.message || 'Error compiling application';
+      }
+      if (streamLog) {
+        streamLog.textContent += `\n[Error]: ${err.message || 'Failed'}`;
+      }
+    } finally {
+      if (btnSandboxGenerate) {
+        btnSandboxGenerate.disabled = false;
+        btnSandboxGenerate.innerHTML = `<span>✨ Build Web App</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>`;
+      }
+    }
+  }
+
+  async function handleSandboxIterationSubmit() {
+    const iteration = (sandboxIterationInput?.value || '').trim();
+    if (!iteration) return;
+    if (!currentSandboxApp.code) {
+      showToast('No active application to iterate on.');
+      return;
+    }
+
+    if (sandboxIterationInput) sandboxIterationInput.value = '';
+    if (sandboxStatusIndicator) sandboxStatusIndicator.style.display = 'flex';
+    if (btnSandboxIterationSubmit) btnSandboxIterationSubmit.disabled = true;
+
+    // 1. Add user bubble to chat thread
+    if (sandboxMessagesThread) {
+      const userBubble = document.createElement('div');
+      userBubble.className = 'sandbox-chat-bubble user-bubble';
+      userBubble.textContent = iteration;
+      sandboxMessagesThread.appendChild(userBubble);
+    }
+
+    // 2. Add iteration building card
+    const iterCard = document.createElement('div');
+    iterCard.className = 'sandbox-building-card';
+    iterCard.innerHTML = `
+      <div class="sandbox-building-header">
+        <div class="sandbox-building-icon-wrap" id="sb-iter-icon">🔄</div>
+        <div>
+          <div class="sandbox-building-title" id="sb-iter-title">Updating Web Application</div>
+          <div style="font-size:0.75rem; color:var(--text-secondary);" id="sb-iter-subtitle">Applying changes: "${escapeHtml(iteration)}"</div>
+        </div>
+      </div>
+
+      <div class="sandbox-building-steps">
+        <div class="sandbox-step-row active" id="sb-iter-step-plan">
+          <span class="sandbox-step-icon">🔍</span>
+          <span>Analyzing requested changes & application codebase</span>
+        </div>
+        <div class="sandbox-step-row" id="sb-iter-step-code">
+          <span class="sandbox-step-icon">⏳</span>
+          <span>Patching HTML, styles, and event handlers</span>
+        </div>
+        <div class="sandbox-step-row" id="sb-iter-step-compile">
+          <span class="sandbox-step-icon">⏳</span>
+          <span>Hot-reloading & recompiling live preview</span>
+        </div>
+      </div>
+
+      <div class="sandbox-live-stream-log" id="sb-iter-stream-log">// Requesting code updates from AI...</div>
+    `;
+    if (sandboxMessagesThread) {
+      sandboxMessagesThread.appendChild(iterCard);
+      sandboxMessagesThread.scrollTop = sandboxMessagesThread.scrollHeight;
+    }
+
+    // 3. Mount / show compiling overlay on preview frame
+    let previewOverlay = sandboxPreviewFrameWrap ? sandboxPreviewFrameWrap.querySelector('.sandbox-preview-compiling-overlay') : null;
+    if (!previewOverlay && sandboxPreviewFrameWrap) {
+      previewOverlay = document.createElement('div');
+      previewOverlay.className = 'sandbox-preview-compiling-overlay';
+      previewOverlay.innerHTML = `
+        <div class="sandbox-compiling-pulse-ring"></div>
+        <div class="sandbox-compiling-text">Hot-Reloading Application...</div>
+        <div class="sandbox-compiling-sub">Applying your requested changes to live preview</div>
+      `;
+      sandboxPreviewFrameWrap.appendChild(previewOverlay);
+    }
+    if (previewOverlay) {
+      const textEl = previewOverlay.querySelector('.sandbox-compiling-text');
+      if (textEl) textEl.textContent = 'Hot-Reloading Application...';
+      previewOverlay.style.display = 'flex';
+    }
+
+    try {
+      const updatePrompt = `You are updating an existing single-file HTML web application.
+Current Code:
+\`\`\`html
+${currentSandboxApp.code}
+\`\`\`
+
+User's Requested Changes:
+"${iteration}"
+
+Return ONLY the updated, complete single-file HTML application code inside a single html code block (\`\`\`html ... \`\`\`).
+Do NOT truncate. Preserve all working functionality and apply the requested features or fixes.`;
+
+      if (typeof puter === 'undefined' || !puter.ai || typeof puter.ai.chat !== 'function') {
+        throw new Error('Puter AI SDK not available');
+      }
+
+      const chosenModel = settings.selectedModel || DEFAULT_MODEL;
+      const idLower = (chosenModel || '').toLowerCase();
+      const isReasoning = idLower.includes('reason') || idLower.includes('r1') || idLower.includes('argon') || idLower.startsWith('o1') || idLower.startsWith('o3');
+
+      const chatOptions = {
+        model: chosenModel,
+        stream: true
+      };
+      if (!isReasoning && typeof settings.temperature === 'number') {
+        chatOptions.temperature = 0.7;
+      }
+
+      const streamLog = iterCard.querySelector('#sb-iter-stream-log');
+      const stepPlan = iterCard.querySelector('#sb-iter-step-plan');
+      const stepCode = iterCard.querySelector('#sb-iter-step-code');
+      const stepCompile = iterCard.querySelector('#sb-iter-step-compile');
+
+      // Update plan step
+      if (stepPlan) {
+        stepPlan.className = 'sandbox-step-row completed';
+        const icon = stepPlan.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+      if (stepCode) {
+        stepCode.className = 'sandbox-step-row active';
+        const icon = stepCode.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '⚡';
+      }
+
+      const resp = await puter.ai.chat(
+        [
+          { role: 'system', content: updatePrompt },
+          { role: 'user', content: iteration }
+        ],
+        chatOptions
+      );
+
+      let rawResponse = '';
+      if (resp && typeof resp[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of resp) {
+          const text = chunk?.text || (typeof chunk === 'string' ? chunk : (chunk?.message?.content || ''));
+          if (text) {
+            rawResponse += text;
+            if (streamLog) {
+              streamLog.textContent = rawResponse.slice(-500);
+              streamLog.scrollTop = streamLog.scrollHeight;
+            }
+            if (sandboxMessagesThread) {
+              sandboxMessagesThread.scrollTop = sandboxMessagesThread.scrollHeight;
+            }
+          }
+        }
+      } else {
+        rawResponse = await extractAiContent(resp);
+      }
+
+      if (stepCode) {
+        stepCode.className = 'sandbox-step-row completed';
+        const icon = stepCode.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+      if (stepCompile) {
+        stepCompile.className = 'sandbox-step-row active';
+        const icon = stepCompile.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '⚡';
+      }
+
+      const updatedCode = extractExecutableCode(rawResponse, iteration);
+      if (!updatedCode) {
+        throw new Error('Could not parse updated code from AI response');
+      }
+
+      currentSandboxApp.code = updatedCode;
+      sandboxOriginalAiCode = updatedCode;
+      currentSandboxApp.turns.push({ sender: 'user', text: iteration });
+      currentSandboxApp.turns.push({
+        sender: 'ai',
+        text: `Applied updates: **${iteration}**. Live preview recompiled.`
+      });
+
+      saveSandboxAppToHistory(currentSandboxApp);
+
+      updateSandboxIframe(updatedCode);
+
+      if (stepCompile) {
+        stepCompile.className = 'sandbox-step-row completed';
+        const icon = stepCompile.querySelector('.sandbox-step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+
+      setTimeout(() => {
+        if (previewOverlay) previewOverlay.style.display = 'none';
+      }, 300);
+
+      // Finalize iteration card
+      const iterIcon = iterCard.querySelector('#sb-iter-icon');
+      const iterTitle = iterCard.querySelector('#sb-iter-title');
+      const iterSubtitle = iterCard.querySelector('#sb-iter-subtitle');
+      if (iterIcon) {
+        iterIcon.textContent = '✅';
+        iterIcon.style.background = 'rgba(16, 185, 129, 0.2)';
+        iterIcon.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        iterIcon.style.animation = 'none';
+      }
+      if (iterTitle) {
+        iterTitle.textContent = 'Update Applied & Hot-Reloaded';
+        iterTitle.style.color = '#10b981';
+      }
+      if (iterSubtitle) {
+        iterSubtitle.textContent = `Applied: "${iteration}" • Runtime recompiled`;
+      }
+      if (streamLog) {
+        streamLog.textContent = `// Update compiled successfully: ${updatedCode.split('\n').length} lines.`;
+      }
+
+      renderSandboxCodeView();
+      showToast('Live preview updated and reloaded!');
+    } catch (err) {
+      console.error('Failed to iterate sandbox app:', err);
+      showToast('Iteration error: ' + (err.message || 'Unknown error'));
+      if (previewOverlay) previewOverlay.style.display = 'none';
+
+      const iterIcon = iterCard.querySelector('#sb-iter-icon');
+      const iterTitle = iterCard.querySelector('#sb-iter-title');
+      const iterSubtitle = iterCard.querySelector('#sb-iter-subtitle');
+      const streamLog = iterCard.querySelector('#sb-iter-stream-log');
+      if (iterIcon) {
+        iterIcon.textContent = '⚠️';
+        iterIcon.style.animation = 'none';
+      }
+      if (iterTitle) {
+        iterTitle.textContent = 'Update Failed';
+        iterTitle.style.color = 'var(--danger-color)';
+      }
+      if (iterSubtitle) {
+        iterSubtitle.textContent = err.message || 'Error updating application code';
+      }
+      if (streamLog) {
+        streamLog.textContent += `\n[Error]: ${err.message || 'Failed'}`;
+      }
+    } finally {
+      if (sandboxStatusIndicator) sandboxStatusIndicator.style.display = 'none';
+      if (btnSandboxIterationSubmit) btnSandboxIterationSubmit.disabled = false;
+    }
+  }
+
+  async function publishSandboxApp() {
+    if (!currentSandboxApp.code) {
+      showToast('No active web app to publish.');
+      return;
+    }
+
+    if (typeof puter === 'undefined') {
+      showToast('Puter SDK not loaded');
+      return;
+    }
+
+    try {
+      if (!puter.auth.isSignedIn()) {
+        showToast('Please sign in with Puter to publish your app.');
+        const signedIn = await puter.auth.signIn();
+        if (!signedIn || !puter.auth.isSignedIn()) {
+          showToast('Publishing cancelled (sign-in required).');
+          return;
+        }
+      }
+
+      const origBtnHtml = btnSandboxPublish.innerHTML;
+      btnSandboxPublish.disabled = true;
+      btnSandboxPublish.innerHTML = `<span class="spinner-small" style="width:12px;height:12px;display:inline-block;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span> Publishing...`;
+
+      showToast('Publishing live app to Puter Cloud hosting...');
+
+      const baseSlug = (currentSandboxApp.title || 'omni-app')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .substring(0, 16) || 'app';
+      const randomSuffix = Math.random().toString(36).substring(2, 6);
+      const subdomain = `${baseSlug}-${randomSuffix}`;
+      const dirPath = `hosted_apps/${subdomain}`;
+
+      await puter.fs.mkdir(dirPath, { createMissingParents: true });
+      const htmlContent = prepareExecutableHtml(currentSandboxApp.code, 'html');
+      await puter.fs.write(`${dirPath}/index.html`, htmlContent);
+
+      const site = await puter.hosting.create(subdomain, dirPath);
+      const publishedUrl = site && site.subdomain
+        ? `https://${site.subdomain}.puter.site`
+        : `https://${subdomain}.puter.site`;
+
+      currentSandboxApp.publishedUrl = publishedUrl;
+
+      if (sandboxPublishedBanner && sandboxPublishedLink) {
+        sandboxPublishedLink.href = publishedUrl;
+        sandboxPublishedLink.textContent = publishedUrl;
+        sandboxPublishedBanner.style.display = 'flex';
+      }
+
+      showToast(`🎉 App live at ${publishedUrl}!`, 5000);
+
+      btnSandboxPublish.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Published`;
+      setTimeout(() => {
+        btnSandboxPublish.disabled = false;
+        btnSandboxPublish.innerHTML = origBtnHtml;
+      }, 3000);
+    } catch (err) {
+      console.error('Failed to publish sandbox app:', err);
+      showToast('Failed to publish: ' + (err.message || 'Unknown error'));
+      btnSandboxPublish.disabled = false;
+      btnSandboxPublish.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        <span>Publish App</span>
+      `;
+    }
+  }
+
+  function downloadSandboxApp() {
+    if (!currentSandboxApp.code) {
+      showToast('No code to download.');
+      return;
+    }
+    const blob = new Blob([currentSandboxApp.code], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = (currentSandboxApp.title || 'web-app')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'app';
+    a.download = `${filename}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${filename}.html!`);
+  }
+
+  // --- Wire Sandbox Studio Event Listeners ---
+  if (btnTopbarSandbox) btnTopbarSandbox.addEventListener('click', () => openSandboxStudio());
+  if (sidebarBtnSandbox) sidebarBtnSandbox.addEventListener('click', () => openSandboxStudio());
+  if (btnSandboxStudioBack) btnSandboxStudioBack.addEventListener('click', closeSandboxStudio);
+
+  if (tabBtnSandboxChat) tabBtnSandboxChat.addEventListener('click', () => switchSandboxSubTab('chat'));
+  if (tabBtnSandboxCode) tabBtnSandboxCode.addEventListener('click', () => switchSandboxSubTab('code'));
+
+  if (btnSandboxGenerate) {
+    btnSandboxGenerate.addEventListener('click', () => handleSandboxInitialGenerate());
+  }
+
+  if (sandboxInitialPrompt) {
+    sandboxInitialPrompt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSandboxInitialGenerate();
+      }
+    });
+  }
+
+  // Suggestion prompt chips in initial state
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('.sandbox-prompt-chip');
+    if (!chip) return;
+    const prompt = chip.getAttribute('data-prompt');
+    if (prompt) {
+      if (sandboxInitialPrompt) sandboxInitialPrompt.value = prompt;
+      handleSandboxInitialGenerate(prompt);
+    }
+  });
+
+  // Iteration submit
+  if (btnSandboxIterationSubmit) {
+    btnSandboxIterationSubmit.addEventListener('click', handleSandboxIterationSubmit);
+  }
+
+  if (sandboxIterationInput) {
+    sandboxIterationInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSandboxIterationSubmit();
+      }
+    });
+  }
+
+  // Topbar actions
+  if (btnSandboxPublish) btnSandboxPublish.addEventListener('click', publishSandboxApp);
+  if (btnSandboxDownload) btnSandboxDownload.addEventListener('click', downloadSandboxApp);
+  if (btnSandboxNew) btnSandboxNew.addEventListener('click', () => {
+    if (currentSandboxApp.code && !confirm('Start a new application? Current unsaved changes will be cleared.')) return;
+    resetSandboxStudio();
+    showToast('Sandbox reset for a new web app.');
+  });
+
+  if (btnSandboxReload) {
+    btnSandboxReload.addEventListener('click', () => {
+      if (sandboxStudioIframe && currentSandboxApp.code) {
+        updateSandboxIframe(currentSandboxApp.code);
+        showToast('Preview reloaded!');
+      }
+    });
+  }
+
+  if (btnSandboxVpDesktop) {
+    btnSandboxVpDesktop.addEventListener('click', () => {
+      btnSandboxVpDesktop.classList.add('active');
+      btnSandboxVpMobile?.classList.remove('active');
+      sandboxStudioIframe?.classList.remove('mobile-viewport');
+    });
+  }
+
+  if (btnSandboxVpMobile) {
+    btnSandboxVpMobile.addEventListener('click', () => {
+      btnSandboxVpMobile.classList.add('active');
+      btnSandboxVpDesktop?.classList.remove('active');
+      sandboxStudioIframe?.classList.add('mobile-viewport');
+    });
+  }
+
+  // Mobile column switcher
+  if (sandboxMobileToggle) {
+    sandboxMobileToggle.addEventListener('click', (e) => {
+      const pill = e.target.closest('.sandbox-toggle-pill');
+      if (!pill) return;
+      sandboxMobileToggle.querySelectorAll('.sandbox-toggle-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const pane = pill.getAttribute('data-pane');
+      if (pane === 'right') {
+        sandboxStudioView?.classList.add('mobile-pane-right');
+        sandboxStudioView?.classList.remove('mobile-pane-left');
+      } else {
+        sandboxStudioView?.classList.add('mobile-pane-left');
+        sandboxStudioView?.classList.remove('mobile-pane-right');
+      }
+    });
+  }
+
+  // Copy code in codebase tab
+  if (btnSandboxCopyCode) {
+    btnSandboxCopyCode.addEventListener('click', async () => {
+      const code = sandboxCodeEditor ? sandboxCodeEditor.value : (sandboxCodeContent?.textContent || '');
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        showToast('Code copied to clipboard!');
+      } catch (err) {
+        showToast('Failed to copy code.');
+      }
+    });
+  }
+
+  // Manual Code Editor listeners
+  if (sandboxCodeEditor) {
+    sandboxCodeEditor.addEventListener('scroll', () => {
+      if (sandboxEditorGutter) sandboxEditorGutter.scrollTop = sandboxCodeEditor.scrollTop;
+    });
+
+    sandboxCodeEditor.addEventListener('input', () => {
+      sandboxIsDirty = true;
+      setSandboxEditorStatus('unsaved');
+      updateEditorGutter();
+      const lines = sandboxCodeEditor.value.split('\n').length;
+      if (sandboxCodeStats) sandboxCodeStats.textContent = `${lines} lines`;
+    });
+
+    sandboxCodeEditor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = sandboxCodeEditor.selectionStart;
+        const end = sandboxCodeEditor.selectionEnd;
+        sandboxCodeEditor.value = sandboxCodeEditor.value.substring(0, start) + '  ' + sandboxCodeEditor.value.substring(end);
+        sandboxCodeEditor.selectionStart = sandboxCodeEditor.selectionEnd = start + 2;
+        sandboxIsDirty = true;
+        setSandboxEditorStatus('unsaved');
+        updateEditorGutter();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'Enter')) {
+        e.preventDefault();
+        applyManualCodeEdits();
+      }
+    });
+  }
+
+  if (btnSandboxRunCode) {
+    btnSandboxRunCode.addEventListener('click', applyManualCodeEdits);
+  }
+
+  if (btnSandboxRevertCode) {
+    btnSandboxRevertCode.addEventListener('click', () => {
+      if (!sandboxOriginalAiCode) {
+        showToast('No original AI code to revert to.');
+        return;
+      }
+      if (confirm('Revert all manual edits back to the last AI build?')) {
+        currentSandboxApp.code = sandboxOriginalAiCode;
+        renderSandboxCodeView();
+        updateSandboxIframe(currentSandboxApp.code);
+        saveSandboxAppToHistory(currentSandboxApp);
+        showToast('Reverted to AI code baseline.');
+      }
+    });
+  }
+
+  // Copy published link
+  if (btnCopySandboxPublishedLink) {
+    btnCopySandboxPublishedLink.addEventListener('click', async () => {
+      if (currentSandboxApp.publishedUrl) {
+        try {
+          await navigator.clipboard.writeText(currentSandboxApp.publishedUrl);
+          showToast('Published URL copied to clipboard!');
+        } catch (err) {
+          showToast('Failed to copy link.');
+        }
+      }
+    });
+  }
+
+  // Codebase file tabs switcher
+  if (sandboxCodeFileTabs) {
+    sandboxCodeFileTabs.addEventListener('click', (e) => {
+      const tab = e.target.closest('.code-file-tab');
+      if (!tab) return;
+      if (sandboxIsDirty && sandboxCodeEditor) {
+        mergeEditorCodeIntoApp(sandboxCodeEditor.value, currentSandboxApp.activeFileTab || 'all');
+      }
+      sandboxCodeFileTabs.querySelectorAll('.code-file-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentSandboxApp.activeFileTab = tab.getAttribute('data-file') || 'all';
+      renderSandboxCodeView();
+    });
+  }
+
+  // App Build History Drawer listeners
+  if (btnSandboxHistoryToggle) {
+    btnSandboxHistoryToggle.addEventListener('click', toggleSandboxHistoryDrawer);
+  }
+  if (btnCloseSandboxHistory) {
+    btnCloseSandboxHistory.addEventListener('click', closeSandboxHistoryDrawer);
+  }
+  if (btnClearSandboxHistory) {
+    btnClearSandboxHistory.addEventListener('click', clearSandboxHistory);
+  }
+  if (sandboxHistorySearch) {
+    sandboxHistorySearch.addEventListener('input', (e) => {
+      renderSandboxHistoryList(e.target.value);
+    });
+  }
+  if (btnInitialViewAllHistory) {
+    btnInitialViewAllHistory.addEventListener('click', openSandboxHistoryDrawer);
+  }
+
+  // Delegation on History Cards List
+  if (sandboxHistoryList) {
+    sandboxHistoryList.addEventListener('click', (e) => {
+      const openBtn = e.target.closest('.btn-open-history-app');
+      if (openBtn) {
+        const id = openBtn.getAttribute('data-id');
+        if (id) loadSandboxFromHistory(id);
+        return;
+      }
+      const exportBtn = e.target.closest('.btn-export-history-app');
+      if (exportBtn) {
+        const id = exportBtn.getAttribute('data-id');
+        const item = getSandboxHistory().find(h => h.id === id);
+        if (item) openSandboxExportModal(item);
+        return;
+      }
+      const deleteBtn = e.target.closest('.btn-delete-history-app');
+      if (deleteBtn) {
+        const id = deleteBtn.getAttribute('data-id');
+        if (id && confirm('Delete this application from history?')) {
+          deleteSandboxHistoryItem(id);
+        }
+        return;
+      }
+    });
+  }
+
+  // Export Codebase Modal listeners
+  if (btnSandboxExportToggle) {
+    btnSandboxExportToggle.addEventListener('click', () => openSandboxExportModal());
+  }
+  if (btnSandboxCodeExport) {
+    btnSandboxCodeExport.addEventListener('click', () => openSandboxExportModal());
+  }
+  if (btnCloseExportModal) {
+    btnCloseExportModal.addEventListener('click', closeSandboxExportModal);
+  }
+  if (btnCancelExportModal) {
+    btnCancelExportModal.addEventListener('click', closeSandboxExportModal);
+  }
+  if (btnExportZip) {
+    btnExportZip.addEventListener('click', exportMultiFileZip);
+  }
+  if (btnExportHtml) {
+    btnExportHtml.addEventListener('click', exportStandaloneHtml);
+  }
+  if (btnExportCodepen) {
+    btnExportCodepen.addEventListener('click', exportToCodePen);
+  }
+  if (btnCopyHtmlPart) {
+    btnCopyHtmlPart.addEventListener('click', () => copyCodePart('html'));
+  }
+  if (btnCopyCssPart) {
+    btnCopyCssPart.addEventListener('click', () => copyCodePart('css'));
+  }
+  if (btnCopyJsPart) {
+    btnCopyJsPart.addEventListener('click', () => copyCodePart('js'));
+  }
+  if (btnCopyAllPart) {
+    btnCopyAllPart.addEventListener('click', () => copyCodePart('all'));
+  }
+
+  // GitHub Drawer in Sandbox Studio
+  if (btnSandboxGithubToggle) {
+    btnSandboxGithubToggle.addEventListener('click', () => {
+      if (!sandboxGithubDrawer) return;
+      const isOpen = sandboxGithubDrawer.style.display !== 'none';
+      sandboxGithubDrawer.style.display = isOpen ? 'none' : 'flex';
+      if (!isOpen && sandboxGithubInput) setTimeout(() => sandboxGithubInput.focus(), 60);
+    });
+  }
+
+  if (btnCloseSandboxGithub) {
+    btnCloseSandboxGithub.addEventListener('click', () => {
+      if (sandboxGithubDrawer) sandboxGithubDrawer.style.display = 'none';
+    });
+  }
+
+  if (btnSandboxGithubFetch) {
+    btnSandboxGithubFetch.addEventListener('click', async () => {
+      const url = (sandboxGithubInput?.value || '').trim();
+      if (!url) return;
+      try {
+        showToast('Fetching code from GitHub...');
+        const cleanUrl = url.replace('https://github.com/', '').replace(/\/$/, '');
+        const parts = cleanUrl.split('/');
+        if (parts.length >= 2) {
+          const owner = parts[0];
+          const repo = parts[1];
+          const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/index.html`;
+          let res = await fetch(rawUrl);
+          if (!res.ok) {
+            res = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/master/index.html`);
+          }
+          if (res.ok) {
+            const code = await res.text();
+            loadSandboxApp(`${owner}/${repo}`, code, `Imported from GitHub: ${url}`);
+            if (sandboxGithubDrawer) sandboxGithubDrawer.style.display = 'none';
+            showToast('Imported GitHub application into Sandbox Studio!');
+            return;
+          }
+        }
+        showToast('Could not find index.html in repository. Check URL.');
+      } catch (err) {
+        showToast('Failed to import: ' + err.message);
+      }
+    });
+  }
+
+  // Starter template chips for Sandbox Studio
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('.sandbox-github-drawer .starter-chip');
+    if (!chip) return;
+    const tplKey = chip.getAttribute('data-template');
+    if (tplKey && STARTER_TEMPLATES[tplKey]) {
+      const titles = {
+        arcade: '🎮 Retro Arcade (Breakout)',
+        dashboard: '📊 SaaS Executive Dashboard',
+        kanban: '📋 Kanban Workspace',
+        pomodoro: '⏱️ Focus Pomodoro'
+      };
+      loadSandboxApp(titles[tplKey] || 'Template App', STARTER_TEMPLATES[tplKey], `Loaded template: ${titles[tplKey]}`);
+      if (sandboxGithubDrawer) sandboxGithubDrawer.style.display = 'none';
+      showToast(`Loaded ${titles[tplKey]}!`);
+    }
+  });
+
+  // Topbar and sidebar plugins modal listeners
+  if (btnTopbarPlugins) btnTopbarPlugins.addEventListener('click', () => {
+    openModal(pluginsModal);
+    renderPluginsMarketplace(activePluginCategory);
+  });
+  if (sidebarBtnPlugins) sidebarBtnPlugins.addEventListener('click', () => {
+    openModal(pluginsModal);
+    renderPluginsMarketplace(activePluginCategory);
+  });
+
+  // Explore Apps modal listeners
   if (sidebarBtnExploreApps) {
     sidebarBtnExploreApps.addEventListener('click', () => {
       openModal(exploreAppsModal);
-      renderExploreAppsGrid();
+      renderExploreAppsGrid('all', '');
+    });
+  }
+  if (btnExploreApps) {
+    btnExploreApps.addEventListener('click', () => {
+      openModal(exploreAppsModal);
+      renderExploreAppsGrid('all', '');
+    });
+  }
+
+  // Plugins Category Filter Pills
+  if (pluginsCategoriesBar) {
+    pluginsCategoriesBar.addEventListener('click', (e) => {
+      const pill = e.target.closest('.category-pill');
+      if (!pill) return;
+      pluginsCategoriesBar.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const cat = pill.getAttribute('data-category') || 'all';
+      renderPluginsMarketplace(cat);
     });
   }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (sandboxExportModal && sandboxExportModal.style.display !== 'none') {
+        closeSandboxExportModal();
+        return;
+      }
+      if (sandboxHistoryDrawer && sandboxHistoryDrawer.style.display !== 'none') {
+        closeSandboxHistoryDrawer();
+        return;
+      }
+      if (sandboxStudioView && sandboxStudioView.style.display !== 'none') {
+        closeSandboxStudio();
+        return;
+      }
       if (artifactsPane && artifactsPane.style.display !== 'none') {
         closeArtifact();
         return;

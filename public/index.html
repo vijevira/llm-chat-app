@@ -70,7 +70,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=1.1.0">
+  <link rel="stylesheet" href="style.css?v=1.2.2">
   
   <!-- Highlight.js for code syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -78,6 +78,9 @@
   
   <!-- Marked.js for fast client-side markdown parsing -->
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+
+  <!-- JSZip for client-side multi-file project export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   
   <!-- Puter.js Safe Request Sanitizer: Silences browser console warnings caused by Puter SDK setting unsafe Origin/Referer headers on fetch/XHR -->
   <script>
@@ -236,7 +239,7 @@
           </div>
         </div>
         <div class="sidebar-version-tag" style="text-align: center; margin-top: 0.45rem; font-size: 0.72rem; color: var(--text-muted); opacity: 0.85;">
-          <span>Omni Chat v1.1.0</span>
+          <span>Omni Chat v1.2.0</span>
         </div>
       </div>
     </aside>
@@ -804,6 +807,284 @@
         </div>
       </section>
 
+      <!-- Dedicated Web App Sandbox Studio (Split Chat/Codebase & Live Preview) -->
+      <section class="sandbox-studio-view" id="sandbox-studio-view" style="display: none;">
+        <!-- Studio Navigation Bar Header -->
+        <div class="sandbox-topbar">
+          <div class="sandbox-topbar-left">
+            <button class="btn-gemini-icon" id="btn-sandbox-studio-back" title="Back to Chat" aria-label="Back to Chat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+            </button>
+            <div class="sandbox-title-badge">
+              <span class="sandbox-header-icon">⚡</span>
+              <div class="sandbox-title-wrap">
+                <h2 class="sandbox-header-title" id="sandbox-header-title">Web App Sandbox Studio</h2>
+                <span class="sandbox-header-subtitle" id="sandbox-header-subtitle">AI Codebase & Live Interactive Preview</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="sandbox-topbar-right">
+            <!-- Mobile Toggle between Chat/Codebase and Live Preview -->
+            <div class="sandbox-mobile-toggle" id="sandbox-mobile-toggle">
+              <button type="button" class="sandbox-toggle-pill active" data-pane="left">Chat & Code</button>
+              <button type="button" class="sandbox-toggle-pill" data-pane="right">Live Preview</button>
+            </div>
+
+            <!-- Viewport Switcher -->
+            <div class="artifacts-viewport-toggle">
+              <button class="artifacts-vp-btn active" id="btn-sandbox-vp-desktop" type="button" title="Desktop View (100%)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </button>
+              <button class="artifacts-vp-btn" id="btn-sandbox-vp-mobile" type="button" title="Mobile View (375px)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              </button>
+            </div>
+
+            <!-- Reload Live Preview -->
+            <button class="icon-btn-sm" id="btn-sandbox-reload" type="button" title="Reload Live Preview">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </button>
+
+            <!-- App History Trigger -->
+            <button class="btn-secondary btn-sm" id="btn-sandbox-history-toggle" type="button" title="View Web App Build History">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>History</span>
+              <span class="sandbox-history-count-badge" id="sandbox-history-count-badge" style="display: none;">0</span>
+            </button>
+
+            <!-- GitHub / Templates Quick Drawer Trigger -->
+            <button class="btn-secondary btn-sm" id="btn-sandbox-github-toggle" type="button" title="Import from GitHub or Templates">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              <span>GitHub</span>
+            </button>
+
+            <!-- Export Codebase (ZIP, Standalone HTML, CodePen) -->
+            <button class="btn-secondary btn-sm" id="btn-sandbox-export-toggle" type="button" title="Export Codebase (ZIP, HTML, CodePen)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export</span>
+            </button>
+
+            <!-- 1-Click Puter Hosting / Publish -->
+            <button class="btn-primary btn-sm btn-publish-artifact" id="btn-sandbox-publish" type="button" title="Publish live to Puter web hosting">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+              <span>Publish App</span>
+            </button>
+
+            <!-- Reset / New App -->
+            <button class="btn-secondary btn-sm" id="btn-sandbox-new" type="button" title="Start New App">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>New</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Collapsible App Build History Drawer -->
+        <div class="sandbox-history-drawer" id="sandbox-history-drawer" style="display: none;">
+          <div class="history-panel-header">
+            <div class="history-panel-title-wrap">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span class="history-panel-title">Web App Build History</span>
+              <span class="history-total-count" id="history-total-count">0 apps</span>
+            </div>
+            <div class="history-panel-actions">
+              <button class="btn-secondary btn-xs" id="btn-clear-sandbox-history" type="button" title="Clear all build history">Clear All</button>
+              <button class="icon-btn-xs" id="btn-close-sandbox-history" type="button" aria-label="Close history">✕</button>
+            </div>
+          </div>
+          <div class="history-search-row">
+            <input type="text" class="form-input history-search-input" id="sandbox-history-search" placeholder="Search previous builds by title or prompt..." />
+          </div>
+          <div class="history-cards-list" id="sandbox-history-list">
+            <!-- Dynamically populated history cards -->
+          </div>
+        </div>
+
+        <!-- Collapsible GitHub & Templates Importer Drawer -->
+        <div class="sandbox-github-drawer" id="sandbox-github-drawer" style="display: none;">
+          <div class="github-panel-header">
+            <span class="github-panel-title">🐙 Import from GitHub / Starter Templates</span>
+            <button class="icon-btn-xs" id="btn-close-sandbox-github" type="button">✕</button>
+          </div>
+          <div class="github-panel-row">
+            <input type="text" class="form-input github-input" id="sandbox-github-input" placeholder="Paste GitHub repository (owner/repo) or raw HTML link..." />
+            <button class="btn-primary btn-sm" id="btn-sandbox-github-fetch" type="button">Import into Studio</button>
+          </div>
+          <div class="github-panel-templates-row">
+            <span class="github-starters-label">Templates:</span>
+            <div class="github-starter-chips">
+              <button type="button" class="starter-chip" data-template="arcade">🎮 Retro Arcade</button>
+              <button type="button" class="starter-chip" data-template="dashboard">📊 Tailwind Stats</button>
+              <button type="button" class="starter-chip" data-template="kanban">📝 Kanban Board</button>
+              <button type="button" class="starter-chip" data-template="pomodoro">⏱️ Focus Timer</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Published URL Banner -->
+        <div class="artifacts-published-banner" id="sandbox-published-banner" style="display: none;">
+          <div class="published-banner-text">
+            <span>🎉 <strong>Live on the Web!</strong></span>
+            <a href="#" id="sandbox-published-link" target="_blank" rel="noopener noreferrer">https://...</a>
+          </div>
+          <button class="icon-btn-sm" id="btn-copy-sandbox-published-link" type="button" title="Copy URL">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+
+        <!-- Studio Content Grid: Left Part (Chat & Codebase) | Right Part (Live Preview) -->
+        <div class="sandbox-content-grid">
+          <!-- Part 1: Left Column (Chat & Codebase) -->
+          <div class="sandbox-left-column" id="sandbox-left-column">
+            <!-- Sub-tab navigation: AI Chat vs Codebase -->
+            <div class="sandbox-tab-bar">
+              <button type="button" class="sandbox-tab-btn active" id="tab-btn-sandbox-chat" data-tab="chat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>AI Chat</span>
+              </button>
+              <button type="button" class="sandbox-tab-btn" id="tab-btn-sandbox-code" data-tab="code">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                <span>Codebase & Files</span>
+                <span class="sandbox-file-count-badge" id="sandbox-file-count-badge">0 files</span>
+              </button>
+            </div>
+
+            <!-- TAB 1: AI Chat View -->
+            <div class="sandbox-tab-pane active" id="sandbox-pane-chat">
+              <!-- Initial Generative State (Shown when no app has been built yet) -->
+              <div class="sandbox-initial-state" id="sandbox-initial-state">
+                <div class="sandbox-initial-hero">
+                  <div class="sandbox-hero-icon-bubble">⚡</div>
+                  <h3 class="sandbox-hero-title">Build Any Web App with AI</h3>
+                  <p class="sandbox-hero-desc">
+                    Describe your application idea, components, and behavior. Omni Chat will generate the files, code, and live preview instantly.
+                  </p>
+                </div>
+
+                <div class="sandbox-initial-form">
+                  <textarea class="sandbox-initial-textarea" id="sandbox-initial-prompt" rows="4" placeholder="Describe the web app you want to build (e.g. 'Build an interactive Habit Tracker with streak counters, weekly calendar grid, and localStorage saving')..."></textarea>
+                  
+                  <div class="sandbox-inspiration-section">
+                    <span class="sandbox-inspiration-label">Need inspiration? Try:</span>
+                    <div class="sandbox-prompt-chips">
+                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a sleek retro Breakout brick-breaker arcade game with canvas graphics, score, and lives">🎮 Breakout Arcade</button>
+                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a modern Pomodoro Focus Timer with circular progress ring, audio chimes, and session task list">⏱️ Pomodoro Timer</button>
+                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build an Agile Kanban Board with draggable cards, priority badges, and persistent localStorage">📋 Kanban Workspace</button>
+                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a SaaS Executive Financial Dashboard with KPI counters, chart visualization, and dark mode">📊 Financial Dashboard</button>
+                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a complete Markdown Note-taking app with live preview, word count, and download button">📝 Markdown Notes</button>
+                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build an interactive Audio Drum Pad synthesizer with keyboard triggers and visual beats">🥁 Drum Machine</button>
+                    </div>
+                  </div>
+
+                  <button class="btn-primary btn-lg sandbox-btn-generate" id="btn-sandbox-generate" type="button">
+                    <span>✨ Build Web App</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+
+                  <!-- Recent Builds quick section (shown when history has apps) -->
+                  <div class="sandbox-recent-builds-section" id="sandbox-recent-builds-section" style="display: none;">
+                    <div class="sandbox-recent-builds-header">
+                      <span>🕒 Recent Web App Builds</span>
+                      <button type="button" class="btn-link-sm" id="btn-initial-view-all-history">View All Builds</button>
+                    </div>
+                    <div class="sandbox-recent-builds-grid" id="sandbox-recent-builds-grid">
+                      <!-- 2-3 recent app cards for quick resume -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Active Chat Thread & Iteration (Shown once an app has been generated) -->
+              <div class="sandbox-active-chat" id="sandbox-active-chat" style="display: none;">
+                <div class="sandbox-messages-thread" id="sandbox-messages-thread">
+                  <!-- Dynamic conversation turns between user and AI -->
+                </div>
+
+                <!-- Sticky Bottom Iteration Bar -->
+                <div class="sandbox-bottom-iteration">
+                  <div class="sandbox-iteration-wrap">
+                    <span class="artifacts-prompt-sparkle">✨</span>
+                    <input type="text" class="sandbox-iteration-input" id="sandbox-iteration-input" placeholder="Ask AI to modify, restyle, or add features (e.g. 'Add dark mode', 'Add high score counter')..." />
+                    <button class="btn-primary btn-sm" id="btn-sandbox-iteration-submit" type="button">
+                      <span>Update</span>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                  </div>
+                  <div class="sandbox-status-indicator" id="sandbox-status-indicator" style="display: none;">
+                    <span class="spinner-sm"></span>
+                    <span id="sandbox-status-text">AI is coding and hot-reloading your web app...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: Codebase & Files View (Interactive Manual Code Editor) -->
+            <div class="sandbox-tab-pane" id="sandbox-pane-code" style="display: none;">
+              <div class="sandbox-code-header">
+                <div class="sandbox-code-file-tabs" id="sandbox-code-file-tabs">
+                  <button type="button" class="code-file-tab active" data-file="all">📦 All-in-One Code</button>
+                  <button type="button" class="code-file-tab" data-file="html">📄 index.html</button>
+                  <button type="button" class="code-file-tab" data-file="css">🎨 style.css</button>
+                  <button type="button" class="code-file-tab" data-file="js">⚡ script.js</button>
+                </div>
+                <div class="sandbox-code-actions">
+                  <span class="sandbox-editor-status" id="sandbox-editor-status">Ready</span>
+                  <span class="sandbox-code-stats" id="sandbox-code-stats">0 lines</span>
+                  <button class="btn-primary btn-xs" id="btn-sandbox-run-code" type="button" title="Apply code changes and run live in preview (Ctrl+S / ⌘S)">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <span>Run Live</span>
+                  </button>
+                  <button class="icon-btn-xs" id="btn-sandbox-revert-code" type="button" title="Revert manual edits">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                    <span>Revert</span>
+                  </button>
+                  <button class="icon-btn-xs" id="btn-sandbox-copy-code" type="button" title="Copy active code">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Copy</span>
+                  </button>
+                  <button class="icon-btn-xs" id="btn-sandbox-code-export" type="button" title="Export codebase (ZIP, HTML, CodePen)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Export</span>
+                  </button>
+                </div>
+              </div>
+              <div class="sandbox-code-body">
+                <div class="sandbox-editor-wrapper">
+                  <div class="sandbox-editor-gutter" id="sandbox-editor-gutter">1</div>
+                  <textarea class="sandbox-code-editor" id="sandbox-code-editor" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="// Type or paste your code here..."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Part 2: Right Column (Live Preview) -->
+          <div class="sandbox-right-column" id="sandbox-right-column">
+            <!-- Standby Preview Placeholder (when no app built yet) -->
+            <div class="sandbox-preview-standby" id="sandbox-preview-standby">
+              <div class="sandbox-standby-graphic">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                  <polyline points="7 10 9 12 7 14"/>
+                  <line x1="12" y1="14" x2="15" y2="14"/>
+                </svg>
+              </div>
+              <h4 class="sandbox-standby-title">Interactive Live Preview</h4>
+              <p class="sandbox-standby-desc">Describe your web app idea on the left and click <strong>Build Web App</strong>. The live, interactive application will compile and render right here.</p>
+            </div>
+
+            <!-- Active Preview Frame Container -->
+            <div class="sandbox-preview-frame-wrap" id="sandbox-preview-frame-wrap" style="display: none;">
+              <iframe id="sandbox-studio-iframe" class="sandbox-studio-iframe" sandbox="allow-scripts allow-forms allow-modals allow-same-origin allow-popups"></iframe>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Interactive Artifacts & Sandboxed Web Apps Pane (Claude Artifacts style) -->
       <section class="artifacts-pane" id="artifacts-pane" style="display: none;">
         <div class="artifacts-header">
@@ -831,16 +1112,43 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
             </button>
 
-            <!-- 1-Click Puter Hosting / Publish -->
-            <button class="btn-primary btn-sm btn-publish-artifact" id="btn-publish-artifact" type="button" title="Publish live to Puter web hosting">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-              <span>Publish App</span>
+            <!-- GitHub Import / Templates Trigger -->
+            <button class="btn-secondary btn-sm" id="btn-artifact-github" type="button" title="Import from GitHub or Templates">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              <span>GitHub</span>
+            </button>
+
+            <!-- Open in Full Studio -->
+            <button class="btn-secondary btn-sm" id="btn-artifact-to-studio" type="button" title="Open in Full Web App Sandbox Studio">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              <span>Studio</span>
             </button>
 
             <!-- Close Pane -->
             <button class="btn-gemini-icon" id="btn-close-artifacts" type="button" title="Close Preview" aria-label="Close Preview">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
+          </div>
+        </div>
+
+        <!-- GitHub Import & Starter Templates Dropdown Panel -->
+        <div class="artifacts-github-panel" id="artifacts-github-panel" style="display: none;">
+          <div class="github-panel-header">
+            <span class="github-panel-title">🐙 Import from GitHub / Starter Templates</span>
+            <button class="icon-btn-xs" id="btn-close-github-panel" type="button">✕</button>
+          </div>
+          <div class="github-panel-row">
+            <input type="text" class="form-input github-input" id="github-repo-input" placeholder="Paste GitHub repo/file URL or raw link (e.g. owner/repo)..." />
+            <button class="btn-primary btn-sm" id="btn-fetch-github-repo" type="button">Import into Sandbox</button>
+          </div>
+          <div class="github-panel-templates-row">
+            <span class="github-starters-label">Starters:</span>
+            <div class="github-starter-chips">
+              <button type="button" class="starter-chip" data-template="arcade">🎮 Retro Arcade</button>
+              <button type="button" class="starter-chip" data-template="dashboard">📊 Tailwind Stats</button>
+              <button type="button" class="starter-chip" data-template="kanban">📝 Kanban Board</button>
+              <button type="button" class="starter-chip" data-template="pomodoro">⏱️ Focus Timer</button>
+            </div>
           </div>
         </div>
 
@@ -857,7 +1165,23 @@
 
         <div class="artifacts-body" id="artifacts-body">
           <div class="artifacts-frame-container" id="artifacts-frame-container">
-            <iframe id="artifacts-sandbox-frame" class="artifacts-sandbox-frame" sandbox="allow-scripts allow-forms allow-modals"></iframe>
+            <iframe id="artifacts-sandbox-frame" class="artifacts-sandbox-frame" sandbox="allow-scripts allow-forms allow-modals allow-same-origin allow-popups"></iframe>
+          </div>
+
+          <!-- In-Sandbox Generative AI App Builder Prompt Bar -->
+          <div class="artifacts-prompt-bar" id="artifacts-prompt-bar">
+            <div class="artifacts-prompt-wrap">
+              <span class="artifacts-prompt-sparkle">✨</span>
+              <input type="text" class="artifacts-prompt-input" id="artifacts-prompt-input" placeholder="Ask AI to build or update this app (e.g. 'Add score counter', 'Make dark neon theme', 'Add restart button')..." />
+              <button class="btn-primary btn-sm btn-submit-artifact-prompt" id="btn-submit-artifact-prompt" type="button">
+                <span>Build App</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="artifacts-status-indicator" id="artifacts-status-indicator" style="display: none;">
+              <span class="spinner-sm"></span>
+              <span id="artifacts-status-text">AI is coding and compiling your web application...</span>
+            </div>
           </div>
         </div>
       </section>
@@ -1057,19 +1381,22 @@
       </div>
 
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
-        <span class="app-version-badge" id="app-version-badge" style="font-size: 0.78rem; color: var(--text-muted); font-weight: 500;">Omni Chat v1.1.0</span>
+        <span class="app-version-badge" id="app-version-badge" style="font-size: 0.78rem; color: var(--text-muted); font-weight: 500;">Omni Chat v1.2.0</span>
         <div style="display: flex; gap: 0.5rem;">
           <button class="btn-secondary" id="btn-cancel-settings">Cancel</button>
           <button class="btn-primary" id="btn-save-settings">Save Settings</button>
         </div>
       </div>
+    </div>
+  </div>
+
   <!-- Plugins & Intelligent Tools Modal -->
-  <div class="modal-overlay" id="plugins-modal" style="display: none;">
+  <div class="modal-overlay" id="plugins-modal">
     <div class="modal-dialog modal-dialog-md">
       <div class="modal-header">
         <div class="modal-title-with-badge" style="display:flex;align-items:center;gap:0.6rem;">
-          <h2 class="modal-title">Intelligent Plugins & Tools</h2>
-          <span class="artifacts-header-badge">Extensible Engine</span>
+          <h2 class="modal-title">Intelligent Plugins Marketplace</h2>
+          <span class="artifacts-header-badge">8 Plugins Available</span>
         </div>
         <button class="btn-gemini-icon" id="btn-close-plugins-modal" title="Close" aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -1077,82 +1404,19 @@
       </div>
 
       <div class="modal-body">
-        <p class="form-hint" style="margin-bottom: 1.25rem;">Enable autonomous plugins to expand Omni Chat with real-time web capabilities and client-side computation.</p>
+        <p class="form-hint" style="margin-bottom: 0.85rem;">Install and enable autonomous plugins to expand Omni Chat with live web grounding, code execution, GitHub integration, and data charts.</p>
 
-        <div class="plugins-list">
-          <!-- Plugin 1: Web Search -->
-          <div class="plugin-card">
-            <div class="plugin-card-left">
-              <span class="plugin-card-icon">🌐</span>
-              <div class="plugin-card-info">
-                <div class="plugin-card-title-row">
-                  <strong>Live Web Search Grounding</strong>
-                  <span class="plugin-badge-active" id="badge-plugin-search-status">Inactive</span>
-                </div>
-                <p class="plugin-card-desc">Grounds AI responses in real-time web facts, recent news, stock data, and clickable citation links via DuckDuckGo.</p>
-              </div>
-            </div>
-            <div class="plugin-card-action">
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-plugin-search">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
+        <!-- Category filter pills -->
+        <div class="plugins-categories-bar" id="plugins-categories-bar" style="display:flex;gap:0.4rem;margin-bottom:1rem;overflow-x:auto;padding-bottom:0.25rem;">
+          <button type="button" class="category-pill active" data-category="all">All (8)</button>
+          <button type="button" class="category-pill" data-category="installed">Installed</button>
+          <button type="button" class="category-pill" data-category="Developer">Developer</button>
+          <button type="button" class="category-pill" data-category="Research">Research & Web</button>
+          <button type="button" class="category-pill" data-category="Analytics">Analytics</button>
+        </div>
 
-          <!-- Plugin 2: JS Code Runner -->
-          <div class="plugin-card">
-            <div class="plugin-card-left">
-              <span class="plugin-card-icon">⚡</span>
-              <div class="plugin-card-info">
-                <div class="plugin-card-title-row">
-                  <strong>JavaScript Code Runner</strong>
-                  <span class="plugin-badge-active" id="badge-plugin-code-status">Inactive</span>
-                </div>
-                <p class="plugin-card-desc">Client-side execution sandbox for mathematical formulas, string formatting, algorithms, and data transformation.</p>
-              </div>
-            </div>
-            <div class="plugin-card-action">
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-plugin-code">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Plugin 3: Interactive Artifacts -->
-          <div class="plugin-card">
-            <div class="plugin-card-left">
-              <span class="plugin-card-icon">🚀</span>
-              <div class="plugin-card-info">
-                <div class="plugin-card-title-row">
-                  <strong>Live Interactive Artifacts</strong>
-                  <span class="plugin-badge-builtin">Built-in</span>
-                </div>
-                <p class="plugin-card-desc">Detects runnable HTML/JS/SVG applications with live split-screen preview and 1-click Puter Cloud hosting to *.puter.site.</p>
-              </div>
-            </div>
-            <div class="plugin-card-action">
-              <span class="text-muted-sm" style="font-size:0.8rem;color:var(--text-muted);">Always On</span>
-            </div>
-          </div>
-
-          <!-- Plugin 4: External API Connectors -->
-          <div class="plugin-card">
-            <div class="plugin-card-left">
-              <span class="plugin-card-icon">🔌</span>
-              <div class="plugin-card-info">
-                <div class="plugin-card-title-row">
-                  <strong>CORS-Free Network Connector</strong>
-                  <span class="plugin-badge-builtin">Puter.js</span>
-                </div>
-                <p class="plugin-card-desc">Powers direct REST API calls from client without CORS limitations via Puter Network fetch.</p>
-              </div>
-            </div>
-            <div class="plugin-card-action">
-              <span class="text-muted-sm" style="font-size:0.8rem;color:var(--text-muted);">Ready</span>
-            </div>
-          </div>
+        <div class="plugins-list" id="plugins-list">
+          <!-- Dynamically rendered plugin cards -->
         </div>
       </div>
 
@@ -1163,7 +1427,7 @@
   </div>
 
   <!-- Explore Community Apps Modal -->
-  <div class="modal-overlay" id="explore-apps-modal" style="display: none;">
+  <div class="modal-overlay" id="explore-apps-modal">
     <div class="modal-dialog modal-dialog-lg">
       <div class="modal-header">
         <div class="modal-title-with-badge" style="display:flex;align-items:center;gap:0.6rem;">
@@ -1198,10 +1462,92 @@
     </div>
   </div>
 
+  <!-- Sandbox Export Codebase Modal -->
+  <div class="modal-overlay" id="sandbox-export-modal" style="display: none;">
+    <div class="modal-dialog modal-dialog-md">
+      <div class="modal-header">
+        <div class="modal-title-with-badge" style="display:flex;align-items:center;gap:0.6rem;">
+          <h2 class="modal-title">Export Web Application Codebase</h2>
+          <span class="artifacts-header-badge">Production Ready</span>
+        </div>
+        <button class="btn-gemini-icon" id="btn-close-export-modal" title="Close" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem;">
+        <div class="sandbox-export-app-info" id="sandbox-export-app-info">
+          <h4 id="export-app-title" style="margin:0 0 0.25rem 0;font-size:1.05rem;color:var(--text-primary);">Web Application</h4>
+          <p id="export-app-meta" style="margin:0;font-size:0.8rem;color:var(--text-secondary);">3 files (index.html, style.css, script.js) • Ready to download or deploy</p>
+        </div>
+
+        <div class="export-options-grid" style="margin-top:1.1rem;">
+          <!-- Option 1: Multi-File Project ZIP -->
+          <div class="export-card">
+            <div class="export-card-icon">📦</div>
+            <div class="export-card-content">
+              <h5>Multi-File Project ZIP</h5>
+              <p>Contains separated <code>index.html</code>, <code>style.css</code>, <code>script.js</code>, and <code>README.md</code>.</p>
+              <button class="btn-primary btn-sm" id="btn-export-zip" type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download .ZIP</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Option 2: Standalone HTML -->
+          <div class="export-card">
+            <div class="export-card-icon">📄</div>
+            <div class="export-card-content">
+              <h5>Standalone HTML File</h5>
+              <p>Self-contained single-file HTML bundle with inline CSS & JS. Double-click to run anywhere.</p>
+              <button class="btn-secondary btn-sm" id="btn-export-html" type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download index.html</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Option 3: CodePen Playground -->
+          <div class="export-card">
+            <div class="export-card-icon">🌐</div>
+            <div class="export-card-content">
+              <h5>Open in CodePen Playground</h5>
+              <p>Prefills CodePen with your HTML, CSS, and JS components for instant cloud testing and sharing.</p>
+              <button class="btn-secondary btn-sm" id="btn-export-codepen" type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>Open in CodePen</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Option 4: Quick Copy Code -->
+          <div class="export-card">
+            <div class="export-card-icon">📋</div>
+            <div class="export-card-content">
+              <h5>Copy Code to Clipboard</h5>
+              <p>Quickly copy individual file sources or the entire all-in-one document.</p>
+              <div class="export-copy-buttons">
+                <button class="btn-secondary btn-xs" id="btn-copy-html-part" type="button">HTML</button>
+                <button class="btn-secondary btn-xs" id="btn-copy-css-part" type="button">CSS</button>
+                <button class="btn-secondary btn-xs" id="btn-copy-js-part" type="button">JS</button>
+                <button class="btn-secondary btn-xs" id="btn-copy-all-part" type="button">All-in-One</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;">
+        <button class="btn-secondary" id="btn-cancel-export-modal" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Main Chat Logic -->
-  <script src="chat.js?v=1.1.0"></script>
+  <script src="chat.js?v=1.2.2"></script>
 </body>
 </html>
