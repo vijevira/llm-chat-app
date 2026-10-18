@@ -237,11 +237,12 @@
             <span>Drop image here to attach</span>
           </div>
 
-          <!-- Attached Image Preview Bar -->
+          <!-- Attached Image & Document Preview Bar -->
           <div class="attachment-preview-bar" id="attachment-preview-bar" style="display: none;">
             <div class="attachment-preview-pill">
-              <img id="attachment-img-preview" class="attachment-preview-thumb" src="" alt="attachment">
-              <span id="attachment-filename">image.png</span>
+              <img id="attachment-img-preview" class="attachment-preview-thumb" src="" alt="attachment" style="display: none;">
+              <span id="attachment-doc-icon" class="attachment-doc-badge" style="display: none;">📄</span>
+              <span id="attachment-filename">filename.ext</span>
               <button class="icon-btn-sm" id="btn-remove-attachment" title="Remove attachment">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -249,17 +250,17 @@
           </div>
 
           <div class="input-row">
-            <!-- Hidden File Input for Image upload -->
-            <input type="file" id="file-input" accept="image/*" style="display: none;">
-            <button class="btn-icon" id="btn-attach" title="Attach image" aria-label="Attach image">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <!-- Hidden File Input for Image & Document Uploads -->
+            <input type="file" id="file-input" accept="image/*,.pdf,.doc,.docx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.c,.cpp,.rs,.go" style="display: none;">
+            <button class="btn-icon" id="btn-attach" title="Attach file or image (PDF, DOCX, TXT, Code, Images)" aria-label="Attach file">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
 
             <!-- Chat Textarea -->
             <textarea
               id="chat-textarea"
               class="chat-textarea"
-              placeholder="Ask anything or pick a prompt..."
+              placeholder="Ask anything, paste images/files, or type /image..."
               rows="1"
               autofocus
             ></textarea>
@@ -564,6 +565,9 @@
             <button class="btn-secondary" id="btn-manual-sync" type="button" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.4rem 0.85rem;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               <span>Sync Cloud Now</span>
+            </button>
+            <button class="btn-secondary" id="btn-enable-cross-sync" type="button" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.4rem 0.85rem;" title="Share chats between localhost and server deployments via Puter Documents folder">
+              <span>🌐 Connect Cross-Device Storage</span>
             </button>
             <span id="sync-last-time" style="font-size: 0.78rem; color: var(--text-muted);">Auto-sync active</span>
           </div>

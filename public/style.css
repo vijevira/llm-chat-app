@@ -2623,3 +2623,180 @@ body.sidebar-closed #btn-toggle-sidebar,
   color: var(--accent-color);
 }
 
+/* User Message Actions & Inline Prompt Editing */
+.message-wrapper.user {
+  position: relative;
+}
+
+.message-wrapper.user .message-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  margin-top: 0.35rem;
+  justify-content: flex-end;
+}
+
+.message-wrapper.user:hover .message-actions,
+.message-wrapper.user:focus-within .message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.user-prompt-edit-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-prompt-edit-textarea {
+  width: 100%;
+  min-height: 72px;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  resize: vertical;
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.user-prompt-edit-textarea:focus {
+  outline: none;
+}
+
+.user-prompt-edit-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Active Project Sidebar Banner & Controls */
+.active-project-banner {
+  margin: 0.5rem 0.6rem 0.75rem 0.6rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-glow);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.active-project-banner-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.84rem;
+  color: var(--accent-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-project-banner-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-project-chat-action {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.btn-project-chat-action:hover {
+  background: var(--hover-color);
+  border-color: var(--accent-color);
+}
+
+.btn-project-chat-action.primary {
+  background: var(--accent-color);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-project-chat-action.primary:hover {
+  filter: brightness(1.1);
+}
+
+/* Attachment Doc Badge */
+.attachment-doc-badge {
+  font-size: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* AI Generated Image Cards */
+.ai-generated-image-card {
+  margin: 0.6rem 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: inline-block;
+  max-width: 100%;
+  box-shadow: var(--shadow-md);
+}
+
+.ai-generated-image {
+  display: block;
+  max-width: 100%;
+  max-height: 480px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.ai-generated-image:hover {
+  opacity: 0.95;
+}
+
+.ai-image-footer {
+  padding: 0.45rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-tertiary);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  gap: 0.5rem;
+}
+
+/* Document Export Buttons */
+.btn-export-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-export-doc:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+  background: var(--hover-color);
+}
+
+

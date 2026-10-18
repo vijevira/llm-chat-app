@@ -510,6 +510,178 @@
     }
   }
 
+  // --- Shared Documents Cross-Device Synchronization ---
+  let sharedDocumentsDirPath = null;
+
+  function updateCrossSyncUIState(isConnected) {
+    const btnCrossSync = document.getElementById('btn-enable-cross-sync');
+    if (btnCrossSync) {
+      if (isConnected) {
+        btnCrossSync.innerHTML = '<span>✓ Cross-Device Sync Connected</span>';
+        btnCrossSync.className = 'btn-secondary btn-cross-sync-connected';
+        btnCrossSync.title = 'Cross-device storage is connected via Puter Documents. All chats, projects, and username sync between localhost and server.';
+        btnCrossSync.style.color = 'var(--success-color, #10b981)';
+        btnCrossSync.style.borderColor = 'var(--success-color, #10b981)';
+      } else {
+        btnCrossSync.innerHTML = '<span>🌐 Connect Cross-Device Storage</span>';
+        btnCrossSync.className = 'btn-secondary';
+        btnCrossSync.title = 'Share chats between localhost and server deployments via Puter Documents folder';
+        btnCrossSync.style.color = '';
+        btnCrossSync.style.borderColor = '';
+      }
+    }
+  }
+
+  async function getSharedDocumentsDir(promptIfMissing = false) {
+    if (typeof puter === 'undefined' || !puter.perms || typeof puter.perms.check !== 'function') {
+      return null;
+    }
+    if (sharedDocumentsDirPath && !promptIfMissing) {
+      return sharedDocumentsDirPath;
+    }
+    try {
+      const hasPerm = await puter.perms.check('folder', { name: 'Documents', access: 'write' });
+      if (hasPerm) {
+        const path = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
+        sharedDocumentsDirPath = path || 'Documents';
+        updateCrossSyncUIState(true);
+        return sharedDocumentsDirPath;
+      }
+      if (promptIfMissing) {
+        const path = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
+        if (path) {
+          sharedDocumentsDirPath = path;
+          updateCrossSyncUIState(true);
+          return path;
+        }
+      }
+    } catch (e) {
+      console.warn('[Nexus Sync] Shared folder perm error:', e);
+    }
+    updateCrossSyncUIState(false);
+    return null;
+  }
+
+  async function readSharedCrossDeviceState() {
+    const docDir = await getSharedDocumentsDir(false);
+    if (!docDir || typeof puter === 'undefined' || !puter.fs) return null;
+
+    const candidatePaths = [
+      `${docDir}/NexusAI/nexus_sync_state.json`,
+      `${docDir}/nexus_sync_state.json`
+    ];
+
+    for (const p of candidatePaths) {
+      try {
+        const blob = await puter.fs.read(p);
+        if (blob) {
+          const txt = await blob.text();
+          if (txt && txt.trim()) {
+            return JSON.parse(txt);
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  async function writeSharedCrossDeviceState(forcePrompt = false) {
+    const docDir = await getSharedDocumentsDir(forcePrompt);
+    if (!docDir || typeof puter === 'undefined' || !puter.fs) return false;
+
+    const payload = {
+      version: 1,
+      updatedAt: Date.now(),
+      settings: {
+        displayName: settings.displayName || '',
+        customUsername: settings.customUsername || '',
+        personaPreset: settings.personaPreset,
+        systemPrompt: settings.systemPrompt,
+        temperature: settings.temperature,
+        selectedModel: settings.selectedModel
+      },
+      projects: projects,
+      sessions: sessions,
+      deletedSessionIds: Array.from(deletedSessionIds),
+      deletedProjectIds: Array.from(deletedProjectIds)
+    };
+
+    const jsonStr = JSON.stringify(payload);
+
+    try {
+      if (typeof puter.fs.mkdir === 'function') {
+        try { await puter.fs.mkdir(`${docDir}/NexusAI`); } catch (err) {}
+      }
+      await puter.fs.write(`${docDir}/NexusAI/nexus_sync_state.json`, jsonStr);
+      return true;
+    } catch (err) {
+      try {
+        await puter.fs.write(`${docDir}/nexus_sync_state.json`, jsonStr);
+        return true;
+      } catch (e2) {
+        console.warn('[Nexus Sync] Failed to write shared cross-device state:', e2);
+        return false;
+      }
+    }
+  }
+
+  async function syncAllSharedCrossDevice(promptIfMissing = false) {
+    const sharedData = await (promptIfMissing ? (async () => {
+      const dir = await getSharedDocumentsDir(true);
+      return dir ? await readSharedCrossDeviceState() : null;
+    })() : readSharedCrossDeviceState());
+
+    if (sharedData) {
+      if (sharedData.settings) {
+        if (!settings.displayName && sharedData.settings.displayName) {
+          settings.displayName = sharedData.settings.displayName;
+        }
+        if (!settings.customUsername && sharedData.settings.customUsername) {
+          settings.customUsername = sharedData.settings.customUsername;
+        }
+        if (sharedData.settings.selectedModel) {
+          settings.selectedModel = sharedData.settings.selectedModel;
+        }
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+        updateModelButtonUI();
+        updateAuthUI();
+      }
+
+      if (Array.isArray(sharedData.deletedSessionIds)) {
+        sharedData.deletedSessionIds.forEach(id => deletedSessionIds.add(id));
+      }
+      if (Array.isArray(sharedData.deletedProjectIds)) {
+        sharedData.deletedProjectIds.forEach(id => deletedProjectIds.add(id));
+      }
+      saveLocalTombstones();
+
+      if (Array.isArray(sharedData.projects)) {
+        projects = mergeProjects(sharedData.projects, projects);
+        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+        renderProjectsList();
+      }
+
+      if (Array.isArray(sharedData.sessions)) {
+        sessions = mergeSessions(sharedData.sessions, sessions);
+        localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+        renderSessionList();
+        restoreActiveSession();
+      }
+
+      await writeSharedCrossDeviceState(false);
+      updateCrossSyncUIState(true);
+      return true;
+    } else {
+      const docDir = await getSharedDocumentsDir(promptIfMissing);
+      if (docDir) {
+        await writeSharedCrossDeviceState(false);
+        updateCrossSyncUIState(true);
+        return true;
+      }
+    }
+    return false;
+  }
+
   async function readPuterFileOrKV(filePath, kvKey) {
     if (typeof puter !== 'undefined' && puter.fs && typeof puter.fs.read === 'function') {
       try {
@@ -563,6 +735,9 @@
         console.log(`[Nexus Sync] Payload (${jsonStr.length} bytes) exceeds Puter KV limit. Stored safely via puter.fs.`);
       }
     }
+
+    // Also mirror to shared Documents folder if connected
+    writeSharedCrossDeviceState(false).catch(() => {});
 
     return fsSuccess;
   }
@@ -681,6 +856,10 @@
     }
 
     try {
+      // Check if shared cross-device Documents folder is already connected
+      await getSharedDocumentsDir(false);
+      await syncAllSharedCrossDevice(false);
+
       await loadCloudSettings();
       await updateAuthUI();
       fetchPuterModels();
@@ -769,12 +948,14 @@
 
     try {
       if (showFeedback) showToast('Syncing chats with Puter Cloud...');
+      await syncAllSharedCrossDevice(false);
       await loadCloudSettings();
       await syncTombstones();
       await loadProjects();
       await loadSessions();
       await persistSessions();
       await persistProjects();
+      await writeSharedCrossDeviceState(false);
       updateAuthUI();
       updateSyncStatusUI('Synced (Puter Cloud)', true);
       if (showFeedback) {
@@ -798,6 +979,33 @@
   }
   if (btnManualSync) {
     btnManualSync.addEventListener('click', () => manualSyncAll(true));
+  }
+
+  const btnEnableCrossSync = document.getElementById('btn-enable-cross-sync');
+  if (btnEnableCrossSync) {
+    btnEnableCrossSync.addEventListener('click', async () => {
+      const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
+      if (!isSignedIn) {
+        showToast('Please sign in with Puter first');
+        return;
+      }
+      btnEnableCrossSync.disabled = true;
+      btnEnableCrossSync.innerHTML = '<span>⏳ Connecting...</span>';
+      try {
+        const success = await syncAllSharedCrossDevice(true);
+        if (success) {
+          updateCrossSyncUIState(true);
+          showToast('✓ Connected to Puter Documents! All chats, projects & usernames now sync across devices.');
+        } else {
+          showToast('Cross-device storage connection cancelled or not granted.');
+        }
+      } catch (err) {
+        showToast('Connection error: ' + (err.message || 'Permission failed'));
+      } finally {
+        btnEnableCrossSync.disabled = false;
+        updateCrossSyncUIState(!!sharedDocumentsDirPath);
+      }
+    });
   }
 
   // Background Auto-Sync when returning to tab or focus
@@ -1250,6 +1458,32 @@
     }
   }
 
+  function createNewSessionForProject(projectId) {
+    if (!projectId) return;
+    activeProjectId = projectId;
+    const proj = getActiveProject();
+    const newSession = {
+      id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+      title: proj ? `${proj.icon || '📁'} New Chat` : 'New Conversation',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      model: (proj && proj.model) ? proj.model : settings.selectedModel,
+      projectId: activeProjectId,
+      messages: []
+    };
+    sessions.unshift(newSession);
+    currentSessionId = newSession.id;
+    persistSessions();
+    updateTopbarProjectPill();
+    renderProjectsList();
+    renderSessionList();
+    renderActiveSession();
+    chatTextarea.focus();
+    if (proj) {
+      showToast(`Started new chat in "${proj.name}"`);
+    }
+  }
+
   function renderProjectsList() {
     if (!projectsList) return;
     projectsList.innerHTML = '';
@@ -1268,15 +1502,21 @@
       item.setAttribute('data-id', p.id);
 
       const fileCount = (p.files && p.files.length) ? p.files.length : 0;
-      const fileBadge = fileCount > 0 ? `<span class="project-nav-badge" title="${fileCount} attached files">${fileCount}</span>` : '';
+      const fileBadge = fileCount > 0 ? `<span class="project-nav-badge" title="${fileCount} attached files">${fileCount} 📄</span>` : '';
+      const pChatCount = sessions.filter(s => s.projectId === p.id).length;
+      const chatBadge = pChatCount > 0 ? `<span class="project-nav-badge" title="${pChatCount} conversations in this project">${pChatCount} 💬</span>` : '';
 
       item.innerHTML = `
         <div class="project-nav-main">
           <span class="project-nav-icon">${escapeHtml(p.icon || '📁')}</span>
           <span class="project-nav-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+          ${chatBadge}
           ${fileBadge}
         </div>
         <div class="project-nav-actions">
+          <button class="icon-btn-xs btn-add-chat-project" title="New conversation in ${escapeHtml(p.name)}" aria-label="New chat in project">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
           <button class="icon-btn-xs btn-edit-project" title="Edit Project Studio" aria-label="Edit project">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -1284,9 +1524,17 @@
       `;
 
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-edit-project')) return;
+        if (e.target.closest('.project-nav-actions')) return;
         selectProject(p.id);
       });
+
+      const btnAddChat = item.querySelector('.btn-add-chat-project');
+      if (btnAddChat) {
+        btnAddChat.addEventListener('click', (e) => {
+          e.stopPropagation();
+          createNewSessionForProject(p.id);
+        });
+      }
 
       const btnEdit = item.querySelector('.btn-edit-project');
       if (btnEdit) {
@@ -1938,7 +2186,39 @@
   function renderSessionList() {
     const proj = getActiveProject();
     if (proj) {
-      chatHistoryList.innerHTML = `<div class="chat-history-title">${escapeHtml(proj.icon || '📁')} ${escapeHtml(proj.name)} Chats</div>`;
+      chatHistoryList.innerHTML = `
+        <div class="active-project-banner">
+          <div class="active-project-banner-header">
+            <span>${escapeHtml(proj.icon || '📁')}</span>
+            <span>${escapeHtml(proj.name)}</span>
+          </div>
+          <div class="active-project-banner-actions">
+            <button class="btn-project-chat-action primary" id="btn-project-new-chat" title="Start a new conversation in this project">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>+ New Project Chat</span>
+            </button>
+            <button class="btn-project-chat-action" id="btn-exit-project-sidebar" title="View all standard chats">
+              <span>← All Chats</span>
+            </button>
+          </div>
+        </div>
+        <div class="chat-history-title">${escapeHtml(proj.name)} Conversations</div>
+      `;
+
+      const btnProjNew = chatHistoryList.querySelector('#btn-project-new-chat');
+      if (btnProjNew) {
+        btnProjNew.addEventListener('click', (e) => {
+          e.stopPropagation();
+          createNewSessionForProject(activeProjectId);
+        });
+      }
+      const btnExitProj = chatHistoryList.querySelector('#btn-exit-project-sidebar');
+      if (btnExitProj) {
+        btnExitProj.addEventListener('click', (e) => {
+          e.stopPropagation();
+          exitProject();
+        });
+      }
     } else {
       chatHistoryList.innerHTML = '<div class="chat-history-title">Recent Conversations</div>';
     }
@@ -1950,7 +2230,7 @@
     if (filteredSessions.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText = 'padding: 0.75rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);';
-      empty.textContent = activeProjectId ? 'No conversations in this project yet' : 'No past conversations';
+      empty.textContent = activeProjectId ? 'No conversations in this project yet. Click "+ New Project Chat" above to start!' : 'No past conversations';
       chatHistoryList.appendChild(empty);
       return;
     }
@@ -2208,6 +2488,15 @@
       container.appendChild(img);
     }
 
+    // Optional document attachment rendering
+    if (msg.documentAttachment) {
+      const docBadge = document.createElement('div');
+      docBadge.className = 'message-doc-attachment-tag';
+      docBadge.style.cssText = 'display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; padding: 0.2rem 0.55rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 0.35rem; color: var(--text-secondary);';
+      docBadge.innerHTML = `📄 <strong>${escapeHtml(msg.documentAttachment.name)}</strong> <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatFileSize(msg.documentAttachment.size)})</span>`;
+      container.appendChild(docBadge);
+    }
+
     // Optional reasoning block
     if (msg.reasoning) {
       const reasoningBlock = document.createElement('div');
@@ -2225,6 +2514,22 @@
       container.appendChild(reasoningBlock);
     }
 
+    // Optional AI Generated Image Card
+    if (msg.imageGeneration) {
+      const imgCard = document.createElement('div');
+      imgCard.className = 'ai-generated-image-card';
+      imgCard.innerHTML = `
+        <img src="${escapeHtml(msg.imageGeneration.url)}" alt="${escapeHtml(msg.imageGeneration.prompt)}" class="ai-generated-image" />
+        <div class="ai-image-footer">
+          <span>🎨 ${escapeHtml(msg.imageGeneration.prompt)}</span>
+          <a href="${escapeHtml(msg.imageGeneration.url)}" download="nexus_ai_image_${Date.now()}.png" class="btn-export-doc" style="text-decoration: none;">
+            ⬇ Download Image
+          </a>
+        </div>
+      `;
+      container.appendChild(imgCard);
+    }
+
     const bubble = document.createElement('div');
     bubble.className = `message-bubble ${msg.role}`;
 
@@ -2238,7 +2543,32 @@
 
     container.appendChild(bubble);
 
-    // Meta & Action Bar for Assistant Messages
+    // Meta & Action Bar for User Messages (Prompt Editing & Copy)
+    if (msg.role === 'user') {
+      const userActions = document.createElement('div');
+      userActions.className = 'message-actions user';
+      userActions.innerHTML = `
+        <button class="icon-btn-sm btn-edit-prompt" title="Edit prompt" aria-label="Edit prompt">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn-sm btn-copy-user-msg" title="Copy prompt" aria-label="Copy prompt">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      `;
+
+      userActions.querySelector('.btn-edit-prompt').addEventListener('click', () => {
+        startInlinePromptEdit(wrapper, bubble, msg, msgIndex);
+      });
+
+      userActions.querySelector('.btn-copy-user-msg').addEventListener('click', () => {
+        navigator.clipboard.writeText(msg.content);
+        showToast('Prompt copied to clipboard');
+      });
+
+      container.appendChild(userActions);
+    }
+
+    // Meta & Action Bar for Assistant Messages (Copy, Regenerate, Export PDF/DOCX/MD)
     if (msg.role === 'assistant') {
       const actions = document.createElement('div');
       actions.className = 'message-actions';
@@ -2250,6 +2580,9 @@
         <button class="icon-btn-sm btn-regen-msg" title="Regenerate from here">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
         </button>
+        <button class="btn-export-doc btn-export-pdf" title="Export formatted response as PDF">📄 PDF</button>
+        <button class="btn-export-doc btn-export-docx" title="Export as Microsoft Word DOCX">📝 DOCX</button>
+        <button class="btn-export-doc btn-export-md" title="Export as Markdown file">📋 MD</button>
       `;
 
       actions.querySelector('.btn-copy-msg').addEventListener('click', () => {
@@ -2261,12 +2594,198 @@
         regenerateFromIndex(msgIndex);
       });
 
+      actions.querySelector('.btn-export-pdf').addEventListener('click', () => {
+        exportMessageAsPdf(msg.content, msgIndex);
+      });
+
+      actions.querySelector('.btn-export-docx').addEventListener('click', () => {
+        exportMessageAsDocx(msg.content, msgIndex);
+      });
+
+      actions.querySelector('.btn-export-md').addEventListener('click', () => {
+        exportMessageAsMarkdown(msg.content, msgIndex);
+      });
+
       container.appendChild(actions);
     }
 
     wrapper.appendChild(avatar);
     wrapper.appendChild(container);
     return wrapper;
+  }
+
+  // --- Document Export Utilities ---
+  function exportMessageAsMarkdown(text, index) {
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_response_${index + 1}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('Downloaded response as Markdown');
+  }
+
+  function exportMessageAsDocx(text, index) {
+    if (!text) return;
+    const htmlBody = formatMarkdown(text);
+    const htmlContent = `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset='utf-8'>
+  <title>Nexus AI Document</title>
+  <style>
+    body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; margin: 2rem; }
+    h1, h2, h3, h4 { color: #0f172a; margin-top: 1.2rem; }
+    pre { background: #f1f5f9; padding: 12px; border-radius: 6px; font-family: Consolas, monospace; font-size: 10pt; }
+    code { font-family: Consolas, monospace; background: #f1f5f9; padding: 2px 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+    th { background: #f8fafc; font-weight: bold; }
+    blockquote { border-left: 3px solid #3b82f6; margin-left: 0; padding-left: 1rem; color: #475569; }
+  </style>
+</head>
+<body>
+  ${htmlBody}
+</body>
+</html>`;
+
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_document_${index + 1}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('Downloaded formatted Word document');
+  }
+
+  function exportMessageAsPdf(text, index) {
+    if (!text) return;
+    const htmlBody = formatMarkdown(text);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Please allow popups to export PDF');
+      return;
+    }
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Nexus AI Document Export</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; padding: 2.5rem; max-width: 800px; margin: 0 auto; }
+    h1, h2, h3, h4 { color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3rem; }
+    pre { background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 10pt; }
+    code { font-family: monospace; background: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; }
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+    th { background: #f1f5f9; font-weight: 600; }
+    blockquote { border-left: 3px solid #3b82f6; margin: 1rem 0; padding-left: 1rem; color: #475569; }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  ${htmlBody}
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 200);
+    };
+  </script>
+</body>
+</html>`);
+    printWindow.document.close();
+    showToast('Opened formatted PDF print dialog');
+  }
+
+  // --- Inline Prompt Editing ---
+  function startInlinePromptEdit(wrapper, bubble, msg, msgIndex) {
+    if (wrapper.querySelector('.user-prompt-edit-container')) return;
+
+    bubble.style.display = 'none';
+    const editContainer = document.createElement('div');
+    editContainer.className = 'user-prompt-edit-container';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'user-prompt-edit-textarea';
+    textarea.value = msg.content;
+    textarea.rows = 2;
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'user-prompt-edit-buttons';
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn-secondary';
+    btnCancel.textContent = 'Cancel';
+    btnCancel.type = 'button';
+
+    const btnSave = document.createElement('button');
+    btnSave.className = 'btn-primary';
+    btnSave.textContent = 'Save & Submit';
+    btnSave.type = 'button';
+
+    btnRow.appendChild(btnCancel);
+    btnRow.appendChild(btnSave);
+    editContainer.appendChild(textarea);
+    editContainer.appendChild(btnRow);
+
+    const contentContainer = wrapper.querySelector('.message-content-container');
+    contentContainer.insertBefore(editContainer, bubble);
+
+    textarea.focus();
+    textarea.select();
+
+    const cleanup = () => {
+      editContainer.remove();
+      bubble.style.display = '';
+    };
+
+    btnCancel.addEventListener('click', cleanup);
+
+    btnSave.addEventListener('click', async () => {
+      const newText = textarea.value.trim();
+      if (!newText) {
+        showToast('Prompt cannot be empty');
+        return;
+      }
+      cleanup();
+
+      const session = getActiveSession();
+      if (!session) return;
+
+      // Update user message content
+      msg.content = newText;
+      msg.rawPrompt = newText + (msg.documentAttachment ? `\n\n[Attached File: ${msg.documentAttachment.name}]` : '');
+      msg.timestamp = Date.now();
+
+      // Truncate subsequent messages in session
+      session.messages = session.messages.slice(0, msgIndex + 1);
+      session.updatedAt = Date.now();
+      await persistSessions();
+
+      renderActiveSession();
+      showToast('Prompt updated. Generating response...');
+      await triggerAssistantResponse(session);
+    });
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        btnSave.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cleanup();
+      }
+    });
   }
 
   function formatMarkdown(content) {
@@ -2345,6 +2864,81 @@
     triggerAssistantResponse(session);
   }
 
+  // --- Image Generation Detection ---
+  function isImageGenerationPrompt(text) {
+    if (!text) return null;
+    const trimmed = text.trim();
+    if (trimmed.startsWith('/image ') || trimmed.startsWith('/img ')) {
+      return trimmed.replace(/^\/(?:image|img)\s+/i, '').trim();
+    }
+    const regex = /^(?:please\s+)?(?:can you\s+)?(?:generate|create|draw|paint|render|make)\s+(?:an?\s+)?(?:image|picture|photo|illustration|drawing|artwork|visual)\s+(?:of|showing|depicting|with)?\s*(.+)/i;
+    const match = trimmed.match(regex);
+    if (match && match[1] && match[1].trim().length > 2) {
+      return match[1].trim();
+    }
+    return null;
+  }
+
+  async function handleImageGeneration(session, promptText, originalUserPrompt) {
+    const assistantMsg = {
+      role: 'assistant',
+      content: `Here is your generated image of: **"${promptText}"**`,
+      model: 'puter.ai.txt2img',
+      timestamp: Date.now()
+    };
+
+    const assistantWrapper = document.createElement('div');
+    assistantWrapper.className = 'message-wrapper assistant';
+
+    const assistantAvatar = document.createElement('div');
+    assistantAvatar.className = 'message-avatar assistant';
+    assistantAvatar.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path fill="url(#geminiSparkleGrad)" d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+      </svg>
+    `;
+
+    const assistantContainer = document.createElement('div');
+    assistantContainer.className = 'message-content-container';
+
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'message-bubble assistant markdown-body';
+    assistantBubble.innerHTML = `<span style="color: var(--accent-color); font-style: italic;">🎨 Generating image: "${escapeHtml(promptText)}"...</span>`;
+
+    assistantContainer.appendChild(assistantBubble);
+    assistantWrapper.appendChild(assistantAvatar);
+    assistantWrapper.appendChild(assistantContainer);
+    messagesInner.appendChild(assistantWrapper);
+    scrollToBottom();
+
+    try {
+      showToast('Generating AI image with Puter...');
+      const imgElement = await puter.ai.txt2img(promptText);
+      const imgSrc = imgElement ? (imgElement.src || (imgElement.getAttribute && imgElement.getAttribute('src'))) : null;
+
+      if (!imgSrc) {
+        throw new Error('No image returned from Puter AI txt2img');
+      }
+
+      assistantBubble.innerHTML = `Here is your generated image for: **"${escapeHtml(promptText)}"**`;
+      assistantMsg.imageGeneration = {
+        prompt: promptText,
+        url: imgSrc
+      };
+
+      session.messages.push(assistantMsg);
+      session.updatedAt = Date.now();
+      await persistSessions();
+
+      renderActiveSession();
+      showToast('Image generated successfully!');
+    } catch (err) {
+      console.warn('[Nexus Image] Generation error:', err);
+      assistantBubble.innerHTML = `<span style="color: var(--danger-color);">⚠️ Image generation failed: ${escapeHtml(err.message || 'Error')}. Switching to text model...</span>`;
+      await triggerAssistantResponse(session);
+    }
+  }
+
   // --- Send Message & Puter AI Streaming ---
   async function handleSend() {
     const text = chatTextarea.value.trim();
@@ -2359,7 +2953,7 @@
 
     if (session.messages.length === 0) {
       if (!session.isRenamed) {
-        session.title = text.slice(0, 36) || 'Image Chat';
+        session.title = text.slice(0, 36) || (currentAttachment ? currentAttachment.name : 'New Conversation');
         if (topbarChatTitle) topbarChatTitle.textContent = session.title;
       }
       renderSessionList();
@@ -2367,11 +2961,25 @@
 
     welcomeContainer.style.display = 'none';
 
+    // Prepare document attachment payload if present
+    let docContext = '';
+    let docAttachment = null;
+    if (currentAttachment && currentAttachment.kind === 'document') {
+      docAttachment = {
+        name: currentAttachment.name,
+        size: currentAttachment.size,
+        type: currentAttachment.type
+      };
+      docContext = `\n\n[Attached File: ${currentAttachment.name}]\n\`\`\`\n${(currentAttachment.content || '').slice(0, 45000)}\n\`\`\``;
+    }
+
     // Add user message
     const userMsg = {
       role: 'user',
       content: text,
-      attachment: currentAttachment ? currentAttachment.dataUrl : null,
+      attachment: (currentAttachment && currentAttachment.kind === 'image') ? currentAttachment.dataUrl : null,
+      documentAttachment: docAttachment,
+      rawPrompt: text + docContext,
       timestamp: Date.now()
     };
     session.messages.push(userMsg);
@@ -2386,6 +2994,13 @@
     const userEl = createMessageDOM(userMsg, session.messages.length - 1);
     messagesInner.appendChild(userEl);
     scrollToBottom();
+
+    // Check if user is asking for image generation
+    const imagePrompt = isImageGenerationPrompt(text);
+    if (imagePrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2img === 'function') {
+      await handleImageGeneration(session, imagePrompt, text);
+      return;
+    }
 
     await triggerAssistantResponse(session);
   }
@@ -2456,18 +3071,19 @@
       ];
 
       session.messages.forEach(m => {
+        const textContent = m.rawPrompt || m.content;
         if (m.attachment) {
           conversationPayload.push({
             role: m.role,
             content: [
-              { type: 'text', text: m.content || 'Analyze this image.' },
+              { type: 'text', text: textContent || 'Analyze this image.' },
               { type: 'file', puter_path: m.attachment }
             ]
           });
         } else {
           conversationPayload.push({
             role: m.role,
-            content: m.content
+            content: textContent
           });
         }
       });
@@ -2554,6 +3170,9 @@
         <button class="icon-btn-sm btn-regen-msg" title="Regenerate">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
         </button>
+        <button class="btn-export-doc btn-export-pdf" title="Export formatted response as PDF">📄 PDF</button>
+        <button class="btn-export-doc btn-export-docx" title="Export as Microsoft Word DOCX">📝 DOCX</button>
+        <button class="btn-export-doc btn-export-md" title="Export as Markdown file">📋 MD</button>
       `;
       actions.querySelector('.btn-copy-msg').addEventListener('click', () => {
         navigator.clipboard.writeText(assistantMsg.content);
@@ -2561,6 +3180,15 @@
       });
       actions.querySelector('.btn-regen-msg').addEventListener('click', () => {
         regenerateFromIndex(session.messages.length - 1);
+      });
+      actions.querySelector('.btn-export-pdf').addEventListener('click', () => {
+        exportMessageAsPdf(assistantMsg.content, session.messages.length - 1);
+      });
+      actions.querySelector('.btn-export-docx').addEventListener('click', () => {
+        exportMessageAsDocx(assistantMsg.content, session.messages.length - 1);
+      });
+      actions.querySelector('.btn-export-md').addEventListener('click', () => {
+        exportMessageAsMarkdown(assistantMsg.content, session.messages.length - 1);
       });
       assistantContainer.appendChild(actions);
 
@@ -2649,10 +3277,8 @@
 
   inputBoxContainer.addEventListener('drop', (e) => {
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      handleImageFile(file);
-    } else {
-      showToast('Please drop an image file');
+    if (file) {
+      handleAttachmentFile(file);
     }
   });
 
@@ -2660,75 +3286,146 @@
 
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (file) handleImageFile(file);
+    if (file) handleAttachmentFile(file);
   });
 
-  function handleImageFile(file) {
-    if (!file.type.startsWith('image/')) {
-      showToast('Please upload an image file');
-      return;
-    }
+  function handleAttachmentFile(file) {
+    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const rawDataUrl = event.target.result;
+    if (file.type && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const rawDataUrl = event.target.result;
 
-      // Downscale high-resolution images so storage quota is preserved
-      const img = new Image();
-      img.onload = () => {
-        const MAX_DIM = 1280;
-        let width = img.width;
-        let height = img.height;
+        // Downscale high-resolution images so storage quota is preserved
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 1280;
+          let width = img.width;
+          let height = img.height;
 
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
           }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+          currentAttachment = {
+            kind: 'image',
+            name: file.name,
+            dataUrl: optimizedDataUrl,
+            type: 'image/jpeg'
+          };
+          if (attachmentImgPreview) {
+            attachmentImgPreview.src = currentAttachment.dataUrl;
+            attachmentImgPreview.style.display = 'block';
+          }
+          const attachmentDocIcon = document.getElementById('attachment-doc-icon');
+          if (attachmentDocIcon) attachmentDocIcon.style.display = 'none';
+          if (attachmentFilename) attachmentFilename.textContent = file.name;
+          if (attachmentPreviewBar) attachmentPreviewBar.style.display = 'flex';
+          btnSend.disabled = false;
+        };
+        img.onerror = () => {
+          currentAttachment = {
+            kind: 'image',
+            name: file.name,
+            dataUrl: rawDataUrl,
+            type: file.type
+          };
+          if (attachmentImgPreview) {
+            attachmentImgPreview.src = currentAttachment.dataUrl;
+            attachmentImgPreview.style.display = 'block';
+          }
+          const attachmentDocIcon = document.getElementById('attachment-doc-icon');
+          if (attachmentDocIcon) attachmentDocIcon.style.display = 'none';
+          if (attachmentFilename) attachmentFilename.textContent = file.name;
+          if (attachmentPreviewBar) attachmentPreviewBar.style.display = 'flex';
+          btnSend.disabled = false;
+        };
+        img.src = rawDataUrl;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Document / Code / Text file
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const textContent = event.target.result;
+        currentAttachment = {
+          kind: 'document',
+          name: file.name,
+          size: file.size,
+          type: file.type || 'text/plain',
+          content: typeof textContent === 'string' ? textContent : ''
+        };
+
+        if (attachmentImgPreview) attachmentImgPreview.style.display = 'none';
+        const attachmentDocIcon = document.getElementById('attachment-doc-icon');
+        if (attachmentDocIcon) {
+          attachmentDocIcon.textContent = file.name.endsWith('.pdf') ? '📕' : (file.name.match(/\.(docx?|odt)$/i) ? '📝' : '📄');
+          attachmentDocIcon.style.display = 'inline-flex';
         }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-
-        currentAttachment = {
-          name: file.name,
-          dataUrl: optimizedDataUrl,
-          type: 'image/jpeg'
-        };
-        attachmentImgPreview.src = currentAttachment.dataUrl;
-        attachmentFilename.textContent = file.name;
-        attachmentPreviewBar.style.display = 'flex';
+        if (attachmentFilename) attachmentFilename.textContent = `${file.name} (${formatFileSize(file.size)})`;
+        if (attachmentPreviewBar) attachmentPreviewBar.style.display = 'flex';
         btnSend.disabled = false;
+        showToast(`Attached ${file.name}`);
       };
-      img.onerror = () => {
-        currentAttachment = {
-          name: file.name,
-          dataUrl: rawDataUrl,
-          type: file.type
-        };
-        attachmentImgPreview.src = currentAttachment.dataUrl;
-        attachmentFilename.textContent = file.name;
-        attachmentPreviewBar.style.display = 'flex';
-        btnSend.disabled = false;
+      reader.onerror = () => {
+        showToast(`Could not read file "${file.name}"`);
       };
-      img.src = rawDataUrl;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsText(file);
+    }
     fileInput.value = '';
   }
 
+  // Clipboard Paste (Cmd+V / Ctrl+V for images and files)
+  chatTextarea.addEventListener('paste', (e) => {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData || !clipboardData.items) return;
+
+    for (let i = 0; i < clipboardData.items.length; i++) {
+      const item = clipboardData.items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleAttachmentFile(file);
+          showToast('Image pasted from clipboard');
+          return;
+        }
+      } else if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleAttachmentFile(file);
+          showToast(`File "${file.name}" pasted from clipboard`);
+          return;
+        }
+      }
+    }
+  });
+
   function clearAttachment() {
     currentAttachment = null;
-    attachmentPreviewBar.style.display = 'none';
-    attachmentImgPreview.src = '';
+    if (attachmentPreviewBar) attachmentPreviewBar.style.display = 'none';
+    if (attachmentImgPreview) {
+      attachmentImgPreview.src = '';
+      attachmentImgPreview.style.display = 'none';
+    }
+    const attachmentDocIcon = document.getElementById('attachment-doc-icon');
+    if (attachmentDocIcon) attachmentDocIcon.style.display = 'none';
   }
 
   btnRemoveAttachment.addEventListener('click', () => {
