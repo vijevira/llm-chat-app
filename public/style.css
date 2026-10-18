@@ -107,7 +107,7 @@ body {
 /* Layout App Container */
 .app-container {
   display: flex;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   position: relative;
   overflow: hidden;
@@ -202,43 +202,6 @@ body {
   border-color: var(--accent-color);
 }
 
-/* Sidebar Platform Navigation (Explore Apps, Sandbox, Plugins) */
-.sidebar-platform-nav {
-  display: flex;
-  gap: 0.35rem;
-  margin-top: 0.55rem;
-}
-
-.sidebar-nav-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0.45rem 0.25rem;
-  background-color: var(--bg-primary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-size: 0.73rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-  text-align: center;
-  line-height: 1.2;
-}
-
-.sidebar-nav-btn:hover {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border-color: var(--accent-color);
-  transform: translateY(-1px);
-}
-
-.sidebar-nav-btn .nav-btn-icon {
-  font-size: 1rem;
-  margin-bottom: 0.2rem;
-}
 
 .chat-history-container {
   flex: 1;
@@ -743,6 +706,7 @@ body {
   background-color: var(--bg-primary);
   position: relative;
   overflow: hidden;
+  min-width: 0;
 }
 
 /* Top Navigation Bar Header */
@@ -1066,12 +1030,15 @@ body.sidebar-closed #btn-toggle-sidebar,
 .messages-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem 1.5rem 3rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  width: 100%;
+  min-width: 0;
 }
 
 .messages-inner {
@@ -1081,6 +1048,7 @@ body.sidebar-closed #btn-toggle-sidebar,
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  min-width: 0;
 }
 
 /* Gemini Hero Welcome Screen */
@@ -1171,6 +1139,7 @@ body.sidebar-closed #btn-toggle-sidebar,
   display: flex;
   gap: 1.25rem;
   width: 100%;
+  min-width: 0;
   animation: fadeIn 0.25s ease-out;
 }
 
@@ -1201,7 +1170,9 @@ body.sidebar-closed #btn-toggle-sidebar,
   display: flex;
   flex-direction: column;
   max-width: 100%;
+  width: 100%;
   flex: 1;
+  min-width: 0;
 }
 
 .message-wrapper.user .message-content-container {
@@ -1218,6 +1189,8 @@ body.sidebar-closed #btn-toggle-sidebar,
   font-size: 0.95rem;
   line-height: 1.6;
   word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 /* Gemini Assistant Message (Open, borderless, natural flow) */
@@ -1228,6 +1201,10 @@ body.sidebar-closed #btn-toggle-sidebar,
   font-size: 1rem;
   line-height: 1.7;
   word-break: break-word;
+  overflow-wrap: break-word;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .message-attachment {
@@ -1272,10 +1249,14 @@ body.sidebar-closed #btn-toggle-sidebar,
   color: var(--text-secondary);
   line-height: 1.6;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
   font-family: var(--font-mono);
   font-size: 0.82rem;
   max-height: 320px;
   overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .reasoning-block.collapsed .reasoning-content {
@@ -1285,10 +1266,15 @@ body.sidebar-closed #btn-toggle-sidebar,
 /* Markdown Rendering */
 .markdown-body {
   line-height: 1.7;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .markdown-body p {
   margin-bottom: 1rem;
+  overflow-wrap: break-word;
 }
 
 .markdown-body p:last-child {
@@ -1299,6 +1285,7 @@ body.sidebar-closed #btn-toggle-sidebar,
   margin: 1.4rem 0 0.6rem 0;
   font-weight: 700;
   letter-spacing: -0.01em;
+  overflow-wrap: break-word;
 }
 
 .markdown-body h1 { font-size: 1.5rem; }
@@ -1311,6 +1298,7 @@ body.sidebar-closed #btn-toggle-sidebar,
 
 .markdown-body li {
   margin-bottom: 0.4rem;
+  overflow-wrap: break-word;
 }
 
 .markdown-body blockquote {
@@ -1319,6 +1307,7 @@ body.sidebar-closed #btn-toggle-sidebar,
   color: var(--text-secondary);
   margin: 1rem 0;
   font-style: italic;
+  overflow-wrap: break-word;
 }
 
 .markdown-body table {
@@ -1326,12 +1315,18 @@ body.sidebar-closed #btn-toggle-sidebar,
   width: 100%;
   margin: 1.25rem 0;
   font-size: 0.9rem;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .markdown-body th, .markdown-body td {
   border: 1px solid var(--border-color);
   padding: 0.6rem 0.85rem;
   text-align: left;
+  max-width: 320px;
+  overflow-wrap: break-word;
 }
 
 .markdown-body th {
@@ -1346,6 +1341,8 @@ body.sidebar-closed #btn-toggle-sidebar,
   padding: 0.2em 0.45em;
   border-radius: 4px;
   color: var(--accent-color);
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .code-block-wrapper {
@@ -1354,6 +1351,10 @@ body.sidebar-closed #btn-toggle-sidebar,
   overflow: hidden;
   background-color: var(--code-bg);
   border: 1px solid var(--border-color);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .code-header {
@@ -1390,10 +1391,13 @@ body.sidebar-closed #btn-toggle-sidebar,
   margin: 0;
   padding: 1rem 1.15rem;
   overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
   font-family: var(--font-mono);
   font-size: 0.88rem;
   line-height: 1.6;
   color: var(--code-text);
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Gemini Message Action Bar */
@@ -4037,22 +4041,46 @@ body.sidebar-closed #btn-toggle-sidebar,
 }
 
 /* Plugins Marketplace Styles */
+.plugins-categories-container {
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.65rem 1.4rem;
+  flex-shrink: 0;
+}
+
+.plugins-categories-bar {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .category-pill {
-  padding: 0.3rem 0.7rem;
-  background: var(--bg-primary);
+  padding: 0.35rem 0.75rem;
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-pill);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+  font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease;
+}
+
+.category-pill:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
 }
 
 .category-pill.active {
   background: var(--accent-color);
-  color: white;
+  color: #ffffff;
   border-color: var(--accent-color);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(26, 115, 232, 0.35);
 }
 
 .plugin-install-btn {

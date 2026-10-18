@@ -8,6 +8,8 @@ export function openModal(modal) {
   modal.style.display = 'flex';
   void modal.offsetWidth; // Force layout reflow
   modal.classList.add('active');
+  const body = modal.querySelector('.modal-body');
+  if (body) body.scrollTop = 0;
 }
 
 export function closeModal(modal) {

@@ -27,7 +27,6 @@ export function initPluginsManager() {
   const btnCloseModal = document.getElementById('btn-close-plugins-modal');
   const btnCloseModalFooter = document.getElementById('btn-close-plugins-modal-footer');
   const btnTopbarPlugins = document.getElementById('btn-topbar-plugins');
-  const sidebarBtnPlugins = document.getElementById('sidebar-btn-plugins');
   const pillManagePlugins = document.getElementById('pill-manage-plugins');
   const pillToolSearch = document.getElementById('pill-tool-search');
   const pillToolCode = document.getElementById('pill-tool-code');
@@ -42,13 +41,6 @@ export function initPluginsManager() {
   };
 
   if (btnTopbarPlugins) btnTopbarPlugins.addEventListener('click', openPlugins);
-  if (sidebarBtnPlugins) sidebarBtnPlugins.addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && window.innerWidth <= 768) {
-      sidebar.classList.remove('mobile-open');
-    }
-    openPlugins();
-  });
   if (pillManagePlugins) pillManagePlugins.addEventListener('click', openPlugins);
 
   // Close Listeners

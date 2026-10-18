@@ -13,7 +13,6 @@ export function initExploreAppsModal() {
   const exploreAppsModal = document.getElementById('explore-apps-modal');
   const btnCloseModal = document.getElementById('btn-close-explore-apps-modal');
   const btnCancelModal = document.getElementById('btn-cancel-explore-apps-modal');
-  const sidebarBtnExplore = document.getElementById('sidebar-btn-explore-apps');
   const btnExploreApps = document.getElementById('btn-explore-apps');
   const searchInput = document.getElementById('explore-apps-search');
   const categoryPills = document.getElementById('explore-category-pills');
@@ -27,7 +26,6 @@ export function initExploreAppsModal() {
     renderExploreAppsGrid('all', searchInput?.value.trim() || '');
   };
 
-  if (sidebarBtnExplore) sidebarBtnExplore.addEventListener('click', openExplore);
   if (btnExploreApps) btnExploreApps.addEventListener('click', openExplore);
   if (btnCloseModal) btnCloseModal.addEventListener('click', () => closeModal(exploreAppsModal));
   if (btnCancelModal) btnCancelModal.addEventListener('click', () => closeModal(exploreAppsModal));

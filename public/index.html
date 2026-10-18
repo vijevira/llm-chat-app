@@ -179,20 +179,6 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
           New chat
         </button>
-        <div class="sidebar-platform-nav">
-          <button class="sidebar-nav-btn" id="sidebar-btn-explore-apps" type="button" title="Explore Curated Custom AI Apps">
-            <span class="nav-btn-icon">🧭</span>
-            <span>Explore</span>
-          </button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-sandbox" type="button" title="Open Interactive Web App Sandbox">
-            <span class="nav-btn-icon">⚡</span>
-            <span>Sandbox</span>
-          </button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-plugins" type="button" title="Intelligent Plugins & Tools">
-            <span class="nav-btn-icon">🧩</span>
-            <span>Plugins</span>
-          </button>
-        </div>
       </div>
 
       <!-- Custom Apps & Projects Section -->
@@ -1427,18 +1413,20 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </div>
-
-      <div class="modal-body">
-        <p class="form-hint" style="margin-bottom: 0.85rem;">Install and enable autonomous plugins to expand Omni Chat with live web grounding, code execution, GitHub integration, and data charts.</p>
-
-        <!-- Category filter pills -->
-        <div class="plugins-categories-bar" id="plugins-categories-bar" style="display:flex;gap:0.4rem;margin-bottom:1rem;overflow-x:auto;padding-bottom:0.25rem;">
+ 
+      <!-- Pinned Category Filter Bar: Always visible above scrolling list -->
+      <div class="plugins-categories-container">
+        <div class="plugins-categories-bar" id="plugins-categories-bar">
           <button type="button" class="category-pill active" data-category="all">All (8)</button>
           <button type="button" class="category-pill" data-category="installed">Installed</button>
           <button type="button" class="category-pill" data-category="Developer">Developer</button>
           <button type="button" class="category-pill" data-category="Research">Research & Web</button>
           <button type="button" class="category-pill" data-category="Analytics">Analytics</button>
         </div>
+      </div>
+
+      <div class="modal-body">
+        <p class="form-hint" style="margin-bottom: 0.85rem;">Install and enable autonomous plugins to expand Omni Chat with live web grounding, code execution, GitHub integration, and data charts.</p>
 
         <div class="plugins-list" id="plugins-list">
           <!-- Dynamically rendered plugin cards -->

@@ -26,7 +26,6 @@ const expandedSandboxIds = new Set();
 
 export function initSandboxStudio() {
   const btnTopbarSandbox = document.getElementById('btn-topbar-sandbox');
-  const sidebarBtnSandbox = document.getElementById('sidebar-btn-sandbox');
   const btnSidebarCreateSandbox = document.getElementById('btn-sidebar-create-sandbox');
   const btnSandboxStudioBack = document.getElementById('btn-sandbox-studio-back');
   const btnSandboxNew = document.getElementById('btn-sandbox-new');
@@ -55,7 +54,6 @@ export function initSandboxStudio() {
   const openStudio = () => openSandboxStudio();
 
   if (btnTopbarSandbox) btnTopbarSandbox.addEventListener('click', openStudio);
-  if (sidebarBtnSandbox) sidebarBtnSandbox.addEventListener('click', openStudio);
   if (btnSidebarCreateSandbox) btnSidebarCreateSandbox.addEventListener('click', () => openSandboxStudio());
   if (btnSandboxStudioBack) btnSandboxStudioBack.addEventListener('click', closeSandboxStudio);
   if (btnSandboxNew) btnSandboxNew.addEventListener('click', resetSandboxStudio);
