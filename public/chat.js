@@ -1716,7 +1716,7 @@
       if (btnStudioDelete) btnStudioDelete.style.display = 'inline-flex';
       if (btnStudioShare) btnStudioShare.style.display = 'inline-flex';
     } else {
-      if (studioHeaderTitle) studioHeaderTitle.textContent = 'Create Custom Project';
+      if (studioHeaderTitle) studioHeaderTitle.textContent = 'Create Custom AI App';
       editingProjectIcon = '⚡';
       if (projectNameInput) projectNameInput.value = '';
       if (projectDescInput) projectDescInput.value = '';
@@ -1749,9 +1749,10 @@
       studioPreviewAbortController = null;
     }
     if (projectStudioView) projectStudioView.style.display = 'none';
-    if (chatTopbar) chatTopbar.style.display = 'flex';
-    if (messagesContainer) messagesContainer.style.display = 'flex';
-    if (inputAreaWrapper) inputAreaWrapper.style.display = 'flex';
+    if (chatTopbar) chatTopbar.style.display = '';
+    if (messagesContainer) messagesContainer.style.display = '';
+    if (inputAreaWrapper) inputAreaWrapper.style.display = '';
+    if (btnScrollBottom) btnScrollBottom.style.display = '';
     renderActiveSession();
   }
 
@@ -5708,6 +5709,126 @@
       if (e.target === modal) closeModal(modal);
     });
   });
+
+  const DEFAULT_SANDBOX_STARTER = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omni Sandbox App</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 1.25rem;
+      padding: 2rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.5rem; font-weight: 700; }
+    p { color: #94a3b8; font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.5rem; }
+    .counter-display {
+      font-size: 3rem;
+      font-weight: 800;
+      color: #818cf8;
+      margin-bottom: 1.25rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .btn-row { display: flex; gap: 0.75rem; justify-content: center; }
+    button {
+      padding: 0.7rem 1.25rem;
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button:hover { background: #4338ca; transform: translateY(-2px); }
+    button:active { transform: translateY(0); }
+    .btn-reset { background: rgba(255, 255, 255, 0.1); color: #cbd5e1; }
+    .btn-reset:hover { background: rgba(255, 255, 255, 0.2); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">⚡ Omni Live Sandbox</div>
+    <h1>Interactive Web App</h1>
+    <p>Ask Omni Chat to create any game, dashboard, or tool. Preview it live here or publish it with 1 click to Puter cloud!</p>
+    <div class="counter-display" id="count">0</div>
+    <div class="btn-row">
+      <button id="btn-inc">+ Click Me</button>
+      <button id="btn-reset" class="btn-reset">Reset</button>
+    </div>
+  </div>
+  <script>
+    let n = 0;
+    const countEl = document.getElementById('count');
+    document.getElementById('btn-inc').addEventListener('click', () => {
+      n++;
+      countEl.textContent = n;
+    });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      n = 0;
+      countEl.textContent = n;
+    });
+  <\/script>
+</body>
+</html>`;
+
+  const btnTopbarSandbox = document.getElementById('btn-topbar-sandbox');
+  const sidebarBtnSandbox = document.getElementById('sidebar-btn-sandbox');
+  const btnTopbarPlugins = document.getElementById('btn-topbar-plugins');
+  const sidebarBtnPlugins = document.getElementById('sidebar-btn-plugins');
+  const sidebarBtnExploreApps = document.getElementById('sidebar-btn-explore-apps');
+
+  function openSandboxDirectly() {
+    if (currentArtifact && currentArtifact.code) {
+      openArtifact(currentArtifact.title, currentArtifact.code, currentArtifact.lang);
+    } else {
+      openArtifact('⚡ Interactive Web Sandbox', DEFAULT_SANDBOX_STARTER, 'html');
+    }
+  }
+
+  if (btnTopbarSandbox) btnTopbarSandbox.addEventListener('click', openSandboxDirectly);
+  if (sidebarBtnSandbox) sidebarBtnSandbox.addEventListener('click', openSandboxDirectly);
+
+  if (btnTopbarPlugins) btnTopbarPlugins.addEventListener('click', () => openModal(pluginsModal));
+  if (sidebarBtnPlugins) sidebarBtnPlugins.addEventListener('click', () => openModal(pluginsModal));
+
+  if (sidebarBtnExploreApps) {
+    sidebarBtnExploreApps.addEventListener('click', () => {
+      openModal(exploreAppsModal);
+      renderExploreAppsGrid();
+    });
+  }
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

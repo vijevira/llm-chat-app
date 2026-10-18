@@ -79,6 +79,61 @@
   <!-- Marked.js for fast client-side markdown parsing -->
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   
+  <!-- Puter.js Safe Request Sanitizer: Silences browser console warnings caused by Puter SDK setting unsafe Origin/Referer headers on fetch/XHR -->
+  <script>
+    (function () {
+      var FORBIDDEN_HEADERS = new Set(['origin', 'referer', 'user-agent']);
+      if (typeof window !== 'undefined') {
+        if (window.Headers) {
+          var origSet = Headers.prototype.set;
+          var origAppend = Headers.prototype.append;
+          Headers.prototype.set = function (name, value) {
+            if (typeof name === 'string' && FORBIDDEN_HEADERS.has(name.toLowerCase())) return;
+            return origSet.call(this, name, value);
+          };
+          Headers.prototype.append = function (name, value) {
+            if (typeof name === 'string' && FORBIDDEN_HEADERS.has(name.toLowerCase())) return;
+            return origAppend.call(this, name, value);
+          };
+        }
+        if (window.XMLHttpRequest) {
+          var origSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+          XMLHttpRequest.prototype.setRequestHeader = function (header, value) {
+            if (typeof header === 'string' && FORBIDDEN_HEADERS.has(header.toLowerCase())) return;
+            return origSetRequestHeader.apply(this, arguments);
+          };
+        }
+        var originalFetch = window.fetch;
+        if (originalFetch) {
+          window.fetch = function (resource, init) {
+            if (init && init.headers) {
+              if (window.Headers && init.headers instanceof Headers) {
+                FORBIDDEN_HEADERS.forEach(function (h) { init.headers.delete(h); });
+              } else if (Array.isArray(init.headers)) {
+                init = Object.assign({}, init, {
+                  headers: init.headers.filter(function (entry) {
+                    return !FORBIDDEN_HEADERS.has(String(entry[0]).toLowerCase());
+                  })
+                });
+              } else if (typeof init.headers === 'object') {
+                var clean = {};
+                for (var key in init.headers) {
+                  if (Object.prototype.hasOwnProperty.call(init.headers, key)) {
+                    if (!FORBIDDEN_HEADERS.has(key.toLowerCase())) {
+                      clean[key] = init.headers[key];
+                    }
+                  }
+                }
+                init = Object.assign({}, init, { headers: clean });
+              }
+            }
+            return originalFetch.call(this, resource, init);
+          };
+        }
+      }
+    })();
+  </script>
+
   <!-- Puter.js v2 SDK -->
   <script src="https://js.puter.com/v2/"></script>
 </head>
@@ -121,6 +176,20 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
           New chat
         </button>
+        <div class="sidebar-platform-nav">
+          <button class="sidebar-nav-btn" id="sidebar-btn-explore-apps" type="button" title="Explore Curated Custom AI Apps">
+            <span class="nav-btn-icon">🧭</span>
+            <span>Explore</span>
+          </button>
+          <button class="sidebar-nav-btn" id="sidebar-btn-sandbox" type="button" title="Open Interactive Web App Sandbox">
+            <span class="nav-btn-icon">⚡</span>
+            <span>Sandbox</span>
+          </button>
+          <button class="sidebar-nav-btn" id="sidebar-btn-plugins" type="button" title="Intelligent Plugins & Tools">
+            <span class="nav-btn-icon">🧩</span>
+            <span>Plugins</span>
+          </button>
+        </div>
       </div>
 
       <!-- Custom Apps & Projects Section -->
@@ -233,6 +302,18 @@
         </div>
 
         <div class="topbar-right">
+          <!-- Direct Live Sandbox Split View Toggle -->
+          <button class="btn-topbar-action" id="btn-topbar-sandbox" type="button" title="Open Interactive Web App Sandbox" aria-label="Live Sandbox">
+            <span class="topbar-action-icon">⚡</span>
+            <span class="topbar-action-label">Sandbox</span>
+          </button>
+
+          <!-- Direct Plugins & Intelligent Tools Modal Trigger -->
+          <button class="btn-topbar-action" id="btn-topbar-plugins" type="button" title="Configure Plugins & Intelligent Tools" aria-label="Plugins & Tools">
+            <span class="topbar-action-icon">🧩</span>
+            <span class="topbar-action-label">Plugins</span>
+          </button>
+
           <!-- Cloud Sync Button in Header -->
           <button class="btn-icon" id="btn-topbar-sync" title="Sync with Puter Cloud" aria-label="Sync Cloud Data">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
