@@ -801,6 +801,17 @@
               </div>
             </div>
 
+            <!-- Attached Image Preview Bar for Project Test Chat -->
+            <div class="attachment-preview-bar" id="project-preview-attachment-bar" style="display: none; padding: 0.25rem 0.75rem 0.4rem;">
+              <div class="attachment-preview-pill">
+                <img class="attachment-preview-thumb" id="project-preview-attachment-thumb" src="" alt="preview">
+                <span class="attachment-filename" id="project-preview-attachment-name">screenshot.png</span>
+                <button class="icon-btn-sm" id="btn-remove-project-preview-attachment" type="button" title="Remove image">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+
             <!-- Preview chat input -->
             <div class="studio-preview-input-bar">
               <textarea class="studio-preview-textarea" id="studio-preview-textarea" rows="1" placeholder="Test message to this project..."></textarea>
@@ -991,6 +1002,16 @@
                 </div>
 
                 <div class="sandbox-initial-form">
+                  <!-- Attached Image Preview Bar for Initial Prompt -->
+                  <div class="attachment-preview-bar" id="sandbox-initial-attachment-bar" style="display: none; padding: 0.25rem 0.25rem 0.5rem;">
+                    <div class="attachment-preview-pill">
+                      <img class="attachment-preview-thumb" id="sandbox-initial-attachment-thumb" src="" alt="preview">
+                      <span class="attachment-filename" id="sandbox-initial-attachment-name">screenshot.png</span>
+                      <button class="icon-btn-sm" id="btn-remove-sandbox-initial-attachment" type="button" title="Remove image">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  </div>
                   <textarea class="sandbox-initial-textarea" id="sandbox-initial-prompt" rows="4" placeholder="Describe the web app you want to build (e.g. 'Build an interactive Habit Tracker with streak counters, weekly calendar grid, and localStorage saving')..."></textarea>
                   
                   <div class="sandbox-inspiration-section">
@@ -1030,6 +1051,16 @@
 
                 <!-- Sticky Bottom Iteration Bar -->
                 <div class="sandbox-bottom-iteration">
+                  <!-- Attached Image Preview Bar for Iteration Prompt -->
+                  <div class="attachment-preview-bar" id="sandbox-iter-attachment-bar" style="display: none; padding: 0.25rem 0.25rem 0.4rem;">
+                    <div class="attachment-preview-pill">
+                      <img class="attachment-preview-thumb" id="sandbox-iter-attachment-thumb" src="" alt="preview">
+                      <span class="attachment-filename" id="sandbox-iter-attachment-name">screenshot.png</span>
+                      <button class="icon-btn-sm" id="btn-remove-sandbox-iter-attachment" type="button" title="Remove image">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  </div>
                   <div class="sandbox-iteration-wrap">
                     <span class="artifacts-prompt-sparkle">✨</span>
                     <textarea class="sandbox-iteration-textarea" id="sandbox-iteration-input" rows="1" placeholder="Ask AI to fix issues, restyle, or add features (Shift+Enter for newline, Enter to send)..."></textarea>
@@ -1740,6 +1771,16 @@
       <div class="modal-footer" style="display:flex;justify-content:flex-end;">
         <button class="btn-secondary" id="btn-cancel-export-modal" type="button">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal for Full-Resolution Preview -->
+  <div class="image-lightbox-modal" id="image-lightbox-modal" style="display: none;">
+    <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <button class="lightbox-close-btn" id="btn-close-lightbox" type="button" title="Close (Esc)">✕</button>
+      <img id="lightbox-image" src="" alt="Enlarged image preview">
+      <div class="lightbox-caption" id="lightbox-caption"></div>
     </div>
   </div>
 

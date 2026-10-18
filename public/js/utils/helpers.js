@@ -185,3 +185,76 @@ export function prepareExecutableHtml(code, lang) {
   return processed;
 }
 
+/**
+ * Opens full-resolution image lightbox modal.
+ */
+export function openImageLightbox(src, caption = '') {
+  const modal = document.getElementById('image-lightbox-modal');
+  const img = document.getElementById('lightbox-image');
+  const cap = document.getElementById('lightbox-caption');
+  if (!modal || !img) {
+    window.open(src, '_blank');
+    return;
+  }
+  img.src = src;
+  if (cap) cap.textContent = caption || '';
+  modal.style.display = 'flex';
+}
+
+/**
+ * Closes the image lightbox modal.
+ */
+export function closeImageLightbox() {
+  const modal = document.getElementById('image-lightbox-modal');
+  const img = document.getElementById('lightbox-image');
+  if (modal) modal.style.display = 'none';
+  if (img) img.src = '';
+}
+
+/**
+ * Initializes listeners for closing the image lightbox modal.
+ */
+export function initImageLightbox() {
+  const modal = document.getElementById('image-lightbox-modal');
+  const closeBtn = document.getElementById('btn-close-lightbox');
+  const backdrop = document.getElementById('lightbox-backdrop');
+
+  if (closeBtn) closeBtn.addEventListener('click', closeImageLightbox);
+  if (backdrop) backdrop.addEventListener('click', closeImageLightbox);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('image-lightbox-modal');
+      if (modal && modal.style.display !== 'none') {
+        closeImageLightbox();
+      }
+    }
+  });
+}
+
+/**
+ * Extracts pasted image files from clipboard data event.
+ */
+export function handleClipboardImagePaste(e, callback) {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  if (!clipboardData || !clipboardData.items) return false;
+
+  for (let i = 0; i < clipboardData.items.length; i++) {
+    const item = clipboardData.items[i];
+    if (item.type && item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) {
+        const ext = file.type.split('/')[1] || 'png';
+        const namedFile = (file.name && file.name !== 'image.png')
+          ? file
+          : new File([file], `pasted-image-${Date.now()}.${ext}`, { type: file.type });
+        callback(namedFile);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+

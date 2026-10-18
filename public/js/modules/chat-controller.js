@@ -8,10 +8,11 @@ import { appState } from '../state/app-state.js';
 import { isPluginEnabled } from '../state/plugins-state.js';
 import { fetchLiveWebSearchResults, createSearchSourcesCard, detectSearchIntent } from '../services/tools-service.js';
 import { persistSessions, renderActiveSession, renderSessionList } from './session-manager.js';
-import { compileProjectSystemPrompt } from './project-studio.js';
+import { compileProjectSystemPrompt, attachProjectPreviewImage } from './project-studio.js';
 import { openArtifact } from './artifacts-pane.js';
 import { formatMarkdown, isRunnableWebCode } from '../utils/markdown.js';
 import { escapeHtml, showToast } from '../utils/helpers.js';
+import { attachSandboxImage } from './sandbox-studio.js';
 
 export function initChatController() {
   const textarea = document.getElementById('chat-textarea');
@@ -23,12 +24,17 @@ export function initChatController() {
   const btnAttachImage = document.getElementById('tool-attach-image');
   const btnChatPlus = document.getElementById('btn-chat-plus');
   const toolsPopover = document.getElementById('chat-tools-popover');
+  const btnRemoveAttachment = document.getElementById('btn-remove-attachment');
+  const dropZoneOverlay = document.getElementById('drop-zone-overlay');
+  const inputBoxContainer = document.getElementById('input-box-container');
 
   if (textarea) {
     textarea.addEventListener('input', () => {
       textarea.style.height = 'auto';
       textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-      if (btnSend) btnSend.disabled = textarea.value.trim().length === 0;
+      if (btnSend) {
+        btnSend.disabled = textarea.value.trim().length === 0 && !appState.currentAttachment;
+      }
     });
 
     textarea.addEventListener('keydown', (e) => {
@@ -37,7 +43,104 @@ export function initChatController() {
         sendMessage();
       }
     });
+
+    // Direct paste on chat textarea
+    textarea.addEventListener('paste', (e) => {
+      const handled = handleClipboardImagePaste(e, (file) => {
+        attachImageFile(file);
+      });
+      if (handled) {
+        textarea.focus();
+      }
+    });
   }
+
+  // Remove attachment button
+  if (btnRemoveAttachment) {
+    btnRemoveAttachment.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeChatAttachment();
+    });
+  }
+
+  // Drag and drop image files onto composer
+  if (dropZoneOverlay) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+      window.addEventListener(eventName, (e) => {
+        if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+          const sandboxView = document.getElementById('sandbox-studio-view');
+          const projectView = document.getElementById('project-studio-view');
+          if ((!sandboxView || sandboxView.style.display === 'none') &&
+              (!projectView || projectView.style.display === 'none')) {
+            e.preventDefault();
+            dropZoneOverlay.classList.add('active');
+          }
+        }
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach(eventName => {
+      window.addEventListener(eventName, (e) => {
+        if (e.relatedTarget === null || e.clientX === 0 || e.clientY === 0) {
+          dropZoneOverlay.classList.remove('active');
+        }
+      });
+    });
+
+    window.addEventListener('drop', (e) => {
+      dropZoneOverlay.classList.remove('active');
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          e.preventDefault();
+          attachImageFile(file);
+          if (textarea) textarea.focus();
+        }
+      }
+    });
+  }
+
+  // Global window paste listener: pasting anywhere while in chat routes to active view
+  window.addEventListener('paste', (e) => {
+    const active = document.activeElement;
+    // If user is typing in a specific input/textarea with its own paste handler, let it process
+    if (active && (active.id === 'chat-textarea' || active.id === 'sandbox-iteration-input' ||
+        active.id === 'sandbox-initial-prompt' || active.id === 'studio-preview-textarea' ||
+        active.id === 'sandbox-code-editor')) {
+      return;
+    }
+
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData || !clipboardData.items) return;
+
+    for (let i = 0; i < clipboardData.items.length; i++) {
+      const item = clipboardData.items[i];
+      if (item.type && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          const ext = file.type.split('/')[1] || 'png';
+          const namedFile = (file.name && file.name !== 'image.png')
+            ? file
+            : new File([file], `screenshot-${Date.now()}.${ext}`, { type: file.type });
+
+          const sandboxView = document.getElementById('sandbox-studio-view');
+          const projectView = document.getElementById('project-studio-view');
+
+          if (sandboxView && sandboxView.style.display !== 'none') {
+            attachSandboxImage(namedFile);
+          } else if (projectView && projectView.style.display !== 'none') {
+            attachProjectPreviewImage(namedFile);
+          } else {
+            attachImageFile(namedFile);
+            if (textarea) textarea.focus();
+          }
+          return;
+        }
+      }
+    }
+  });
 
   if (btnSend) {
     btnSend.addEventListener('click', () => sendMessage());
@@ -103,25 +206,41 @@ export async function sendMessage(overrideText = null) {
     ? overrideText.trim()
     : (textarea ? textarea.value.trim() : '');
 
-  if (!text || appState.activeAbortController) return;
+  const attachment = appState.currentAttachment;
+
+  // Allow sending if text exists OR an image attachment exists
+  if ((!text && !attachment) || appState.activeAbortController) return;
 
   const session = appState.sessions.find(s => s.id === appState.currentSessionId);
   if (!session) return;
 
-  // Add User Message
+  // Add User Message (supporting text + image attachment)
   const userMsg = {
     role: 'user',
-    content: text,
+    content: text || (attachment ? 'Please analyze this attached image.' : ''),
     timestamp: Date.now()
   };
+
+  if (attachment) {
+    userMsg.attachment = {
+      name: attachment.name,
+      dataUrl: attachment.dataUrl,
+      type: attachment.type,
+      size: attachment.size || 0
+    };
+  }
+
   session.messages.push(userMsg);
 
   if (textarea) {
     textarea.value = '';
     textarea.style.height = 'auto';
   }
-  if (btnSend) btnSend.disabled = true;
 
+  // Clear composer attachment
+  removeChatAttachment();
+
+  if (btnSend) btnSend.disabled = true;
   if (welcomeView) welcomeView.style.display = 'none';
 
   renderActiveSession();
@@ -204,10 +323,21 @@ export async function triggerAssistantResponse(session) {
     ];
 
     session.messages.forEach(m => {
-      conversationPayload.push({
-        role: m.role,
-        content: m.content
-      });
+      // If message contains an attached image, send OpenAI/Gemini vision multimodal content array
+      if (m.attachment && m.attachment.dataUrl && (m.attachment.type?.startsWith('image/') || m.attachment.dataUrl.startsWith('data:image'))) {
+        conversationPayload.push({
+          role: m.role,
+          content: [
+            { type: 'text', text: m.content || 'Please analyze this attached image in detail.' },
+            { type: 'image_url', image_url: { url: m.attachment.dataUrl } }
+          ]
+        });
+      } else {
+        conversationPayload.push({
+          role: m.role,
+          content: m.content || ''
+        });
+      }
     });
 
     const isReasoning = (effectiveModel || '').toLowerCase().includes('reason') ||
@@ -225,7 +355,20 @@ export async function triggerAssistantResponse(session) {
       chatOptions.temperature = appState.settings.temperature;
     }
 
-    const responseStream = await puter.ai.chat(conversationPayload, chatOptions);
+    let responseStream;
+    try {
+      responseStream = await puter.ai.chat(conversationPayload, chatOptions);
+    } catch (modelCallErr) {
+      console.warn('Multimodal chat call failed, retrying with text fallback:', modelCallErr);
+      const textOnlyPayload = conversationPayload.map(msg => {
+        if (Array.isArray(msg.content)) {
+          const textPart = msg.content.find(c => c.type === 'text')?.text || 'Analyze image';
+          return { role: msg.role, content: `${textPart} [Image attached: ${session.messages.find(m => m.attachment)?.attachment?.name || 'Image'}]` };
+        }
+        return msg;
+      });
+      responseStream = await puter.ai.chat(textOnlyPayload, chatOptions);
+    }
 
     let accumulatedText = '';
 
@@ -313,17 +456,130 @@ async function autoGenerateTitle(session, userPrompt) {
   } catch (_) {}
 }
 
+/**
+ * Extracts pasted image files from clipboard data event.
+ */
+export function handleClipboardImagePaste(e, callback) {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  if (!clipboardData || !clipboardData.items) return false;
+
+  for (let i = 0; i < clipboardData.items.length; i++) {
+    const item = clipboardData.items[i];
+    if (item.type && item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) {
+        const ext = file.type.split('/')[1] || 'png';
+        const namedFile = (file.name && file.name !== 'image.png')
+          ? file
+          : new File([file], `pasted-image-${Date.now()}.${ext}`, { type: file.type });
+        callback(namedFile);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Attaches an image file to the chat composer, reads base64 dataUrl, and renders preview pill.
+ */
+export function attachImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    showToast('Only image files (PNG, JPEG, WEBP, GIF) are supported.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    appState.currentAttachment = {
+      name: file.name || 'Pasted Image',
+      dataUrl: reader.result,
+      type: file.type || 'image/png',
+      size: file.size || 0
+    };
+    renderComposerAttachment();
+    showToast(`📸 Attached image: ${appState.currentAttachment.name}`);
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Renders or hides the Gemini-style composer attachment preview pill.
+ */
+export function renderComposerAttachment() {
+  const bar = document.getElementById('attachment-preview-bar');
+  const thumb = document.getElementById('attachment-img-preview');
+  const docIcon = document.getElementById('attachment-doc-icon');
+  const filename = document.getElementById('attachment-filename');
+  const btnSend = document.getElementById('btn-send');
+
+  if (!appState.currentAttachment) {
+    if (bar) bar.style.display = 'none';
+    if (thumb) {
+      thumb.src = '';
+      thumb.style.display = 'none';
+    }
+    return;
+  }
+
+  if (bar) bar.style.display = 'flex';
+  if (appState.currentAttachment.dataUrl) {
+    if (thumb) {
+      thumb.src = appState.currentAttachment.dataUrl;
+      thumb.style.display = 'block';
+    }
+    if (docIcon) docIcon.style.display = 'none';
+  } else {
+    if (thumb) thumb.style.display = 'none';
+    if (docIcon) docIcon.style.display = 'inline-block';
+  }
+
+  if (filename) {
+    filename.textContent = appState.currentAttachment.name || 'Attached Image';
+  }
+
+  // Enable send button immediately when an image is attached
+  if (btnSend) {
+    btnSend.disabled = false;
+  }
+}
+
+/**
+ * Removes the currently active composer attachment and updates UI state.
+ */
+export function removeChatAttachment() {
+  appState.currentAttachment = null;
+  renderComposerAttachment();
+  const fileInput = document.getElementById('file-input');
+  const imageInput = document.getElementById('image-file-input');
+  if (fileInput) fileInput.value = '';
+  if (imageInput) imageInput.value = '';
+
+  const textarea = document.getElementById('chat-textarea');
+  const btnSend = document.getElementById('btn-send');
+  if (btnSend && textarea && textarea.value.trim().length === 0) {
+    btnSend.disabled = true;
+  }
+}
+
 function handleFileInput(e) {
   const file = e.target.files[0];
   if (!file) return;
+
+  if (file.type.startsWith('image/')) {
+    attachImageFile(file);
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = () => {
     appState.currentAttachment = {
       name: file.name,
       content: reader.result,
-      type: file.type
+      type: file.type || 'text/plain'
     };
-    showToast(`Attached: ${file.name}`);
+    renderComposerAttachment();
+    showToast(`Attached document: ${file.name}`);
   };
   reader.readAsText(file);
 }
@@ -331,15 +587,7 @@ function handleFileInput(e) {
 function handleImageInput(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    appState.currentAttachment = {
-      name: file.name,
-      dataUrl: reader.result,
-      type: file.type
-    };
-    showToast(`Attached image: ${file.name}`);
-  };
-  reader.readAsDataURL(file);
+  attachImageFile(file);
 }
+
 

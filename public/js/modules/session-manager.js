@@ -6,7 +6,7 @@
 
 import { appState, saveTombstones } from '../state/app-state.js';
 import { STORAGE_KEY_SESSIONS } from '../config/constants.js';
-import { escapeHtml, showToast, formatDate } from '../utils/helpers.js';
+import { escapeHtml, showToast, formatDate, openImageLightbox } from '../utils/helpers.js';
 import { formatMarkdown } from '../utils/markdown.js';
 import { renderActiveProjectPill, closeProjectStudio, renderProjectsList } from './project-studio.js';
 import { closeSandboxStudio } from './sandbox-studio.js';
@@ -290,7 +290,33 @@ function renderMessageBubble(msg, idx, container) {
   bubble.className = `message-bubble ${msg.role}`;
 
   if (msg.role === 'user') {
-    bubble.textContent = msg.content;
+    // If there is an attached image, render image preview thumbnail
+    if (msg.attachment && msg.attachment.dataUrl && (msg.attachment.type?.startsWith('image/') || msg.attachment.dataUrl.startsWith('data:image'))) {
+      const imgWrap = document.createElement('div');
+      imgWrap.className = 'chat-message-image-wrap';
+      const img = document.createElement('img');
+      img.src = msg.attachment.dataUrl;
+      img.alt = msg.attachment.name || 'Attached image';
+      img.className = 'chat-message-image-thumb';
+      img.title = 'Click to enlarge image';
+      img.addEventListener('click', () => {
+        openImageLightbox(msg.attachment.dataUrl, msg.attachment.name);
+      });
+      imgWrap.appendChild(img);
+      bubble.appendChild(imgWrap);
+    } else if (msg.attachment && msg.attachment.name) {
+      const docBadge = document.createElement('div');
+      docBadge.className = 'chat-message-doc-badge';
+      docBadge.innerHTML = `<span style="font-size:1.1rem;">📄</span> <span style="font-weight:500;">${escapeHtml(msg.attachment.name)}</span>`;
+      bubble.appendChild(docBadge);
+    }
+
+    if (msg.content) {
+      const textDiv = document.createElement('div');
+      textDiv.className = 'chat-user-message-text';
+      textDiv.textContent = msg.content;
+      bubble.appendChild(textDiv);
+    }
   } else {
     bubble.className += ' markdown-body';
     bubble.innerHTML = formatMarkdown(msg.content);

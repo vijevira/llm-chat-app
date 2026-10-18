@@ -7,7 +7,7 @@ import { STORAGE_KEY_THEME, STORAGE_KEY_MODEL } from './config/constants.js';
 import { CURATED_MODELS, getModelById, getProviderBadgeClass } from './config/models.js';
 import { appState, loadTombstones, loadSettingsFromStorage, saveSettingsToStorage } from './state/app-state.js';
 import { initMarkdownRenderer } from './utils/markdown.js';
-import { showToast, escapeHtml } from './utils/helpers.js';
+import { showToast, escapeHtml, initImageLightbox } from './utils/helpers.js';
 
 import { openModal, closeModal, initModalTabs, initModalGlobalDismissal } from './modules/modals.js';
 import { initPluginsManager } from './modules/plugins-manager.js';
@@ -21,6 +21,7 @@ import { initChatController } from './modules/chat-controller.js';
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initMarkdownRenderer();
+  initImageLightbox();
   loadTombstones();
   loadSettingsFromStorage();
 

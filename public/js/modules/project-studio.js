@@ -7,9 +7,13 @@
 import { appState } from '../state/app-state.js';
 import { CURATED_MODELS } from '../config/models.js';
 import { STORAGE_KEY_PROJECTS } from '../config/constants.js';
-import { escapeHtml, showToast } from '../utils/helpers.js';
+import { escapeHtml, showToast, openImageLightbox, handleClipboardImagePaste } from '../utils/helpers.js';
+import { formatMarkdown } from '../utils/markdown.js';
 import { closeSandboxStudio } from './sandbox-studio.js';
 import { switchSession, createNewSession } from './session-manager.js';
+
+export let currentProjectPreviewAttachment = null;
+let projectPreviewHistory = [];
 
 export function initProjectStudio() {
   const btnCreateProject = document.getElementById('btn-create-project');
@@ -21,6 +25,9 @@ export function initProjectStudio() {
   const btnStudioDelete = document.getElementById('btn-studio-delete');
   const btnAddFormField = document.getElementById('btn-add-form-field');
   const btnSendPreview = document.getElementById('btn-send-preview');
+  const btnResetPreview = document.getElementById('btn-reset-preview');
+  const btnRemovePreviewAttachment = document.getElementById('btn-remove-project-preview-attachment');
+  const previewTextarea = document.getElementById('studio-preview-textarea');
 
   if (btnCreateProject) btnCreateProject.addEventListener('click', () => openProjectStudio(null));
   if (btnEditActiveProject) btnEditActiveProject.addEventListener('click', () => openProjectStudio(appState.activeProjectId));
@@ -40,6 +47,37 @@ export function initProjectStudio() {
     btnAddFormField.addEventListener('click', () => {
       appState.editingProjectFormFields.push({ label: '', placeholder: '', type: 'text' });
       renderAppFormFieldsBuilder();
+    });
+  }
+
+  // Preview test controls
+  if (btnResetPreview) btnResetPreview.addEventListener('click', resetProjectPreview);
+  if (btnRemovePreviewAttachment) btnRemovePreviewAttachment.addEventListener('click', removeProjectPreviewAttachment);
+  if (btnSendPreview) btnSendPreview.addEventListener('click', sendProjectPreviewMessage);
+
+  if (previewTextarea) {
+    previewTextarea.addEventListener('input', () => {
+      previewTextarea.style.height = 'auto';
+      previewTextarea.style.height = Math.min(previewTextarea.scrollHeight, 110) + 'px';
+      if (btnSendPreview) {
+        btnSendPreview.disabled = !(previewTextarea.value.trim().length > 0 || currentProjectPreviewAttachment);
+      }
+    });
+
+    previewTextarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendProjectPreviewMessage();
+      }
+    });
+
+    previewTextarea.addEventListener('paste', (e) => {
+      const handled = handleClipboardImagePaste(e, (file) => {
+        attachProjectPreviewImage(file);
+      });
+      if (handled) {
+        previewTextarea.focus();
+      }
     });
   }
 
@@ -138,6 +176,7 @@ export function openProjectStudio(projectId = null) {
   }
 
   renderAppFormFieldsBuilder();
+  resetProjectPreview();
 }
 
 export function closeProjectStudio() {
@@ -153,6 +192,7 @@ export function closeProjectStudio() {
   if (inputAreaWrapper) inputAreaWrapper.style.display = '';
   if (btnScrollBottom) btnScrollBottom.style.display = '';
 
+  resetProjectPreview();
   renderActiveProjectPill();
   renderProjectsList();
 }
@@ -379,4 +419,234 @@ function populateProjectModelOptions(selectEl) {
     selectEl.appendChild(opt);
   });
 }
+
+/**
+ * Attaches an image file to the project preview test chat.
+ */
+export function attachProjectPreviewImage(file) {
+  if (!file || !file.type || !file.type.startsWith('image/')) {
+    showToast('Only image files are supported in test preview.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    currentProjectPreviewAttachment = {
+      name: file.name || `image-${Date.now()}.png`,
+      type: file.type,
+      data: e.target.result,
+      size: file.size
+    };
+    renderProjectPreviewAttachment();
+    const btnSendPreview = document.getElementById('btn-send-preview');
+    if (btnSendPreview) btnSendPreview.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Removes the currently attached image from the project preview chat.
+ */
+export function removeProjectPreviewAttachment() {
+  currentProjectPreviewAttachment = null;
+  renderProjectPreviewAttachment();
+  const textarea = document.getElementById('studio-preview-textarea');
+  const btnSendPreview = document.getElementById('btn-send-preview');
+  if (btnSendPreview) {
+    btnSendPreview.disabled = !(textarea && textarea.value.trim().length > 0);
+  }
+}
+
+/**
+ * Renders the preview attachment pill above the preview composer.
+ */
+export function renderProjectPreviewAttachment() {
+  const bar = document.getElementById('project-preview-attachment-bar');
+  const thumb = document.getElementById('project-preview-attachment-thumb');
+  const nameEl = document.getElementById('project-preview-attachment-name');
+  if (!bar) return;
+
+  if (currentProjectPreviewAttachment) {
+    bar.style.display = 'block';
+    if (thumb) thumb.src = currentProjectPreviewAttachment.data;
+    if (nameEl) nameEl.textContent = currentProjectPreviewAttachment.name;
+  } else {
+    bar.style.display = 'none';
+    if (thumb) thumb.src = '';
+    if (nameEl) nameEl.textContent = '';
+  }
+}
+
+/**
+ * Resets the project preview test conversation and attachment state.
+ */
+export function resetProjectPreview() {
+  projectPreviewHistory = [];
+  removeProjectPreviewAttachment();
+  const container = document.getElementById('studio-preview-messages');
+  if (container) {
+    container.innerHTML = `
+      <div class="studio-preview-empty">
+        <div class="preview-empty-icon">💬</div>
+        <div class="preview-empty-text">Test your project live</div>
+        <div class="preview-empty-sub">Ask questions to verify how your custom instructions and uploaded documents behave before saving.</div>
+      </div>
+    `;
+  }
+  const textarea = document.getElementById('studio-preview-textarea');
+  if (textarea) {
+    textarea.value = '';
+    textarea.style.height = 'auto';
+  }
+  const btnSendPreview = document.getElementById('btn-send-preview');
+  if (btnSendPreview) btnSendPreview.disabled = true;
+}
+
+/**
+ * Sends a test message in the project live preview panel, supporting text and image attachments.
+ */
+export async function sendProjectPreviewMessage() {
+  const textarea = document.getElementById('studio-preview-textarea');
+  const messagesContainer = document.getElementById('studio-preview-messages');
+  const btnSendPreview = document.getElementById('btn-send-preview');
+  if (!textarea || !messagesContainer) return;
+
+  const text = textarea.value.trim();
+  const attachment = currentProjectPreviewAttachment;
+
+  if (!text && !attachment) return;
+
+  // Clear empty state if present
+  const emptyState = messagesContainer.querySelector('.studio-preview-empty');
+  if (emptyState) emptyState.remove();
+
+  // Build user bubble
+  const userBubble = document.createElement('div');
+  userBubble.className = 'preview-bubble user';
+
+  if (attachment) {
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'chat-message-image-wrap';
+    const img = document.createElement('img');
+    img.className = 'chat-message-image-thumb';
+    img.src = attachment.data;
+    img.alt = attachment.name || 'Pasted image';
+    img.addEventListener('click', () => openImageLightbox(attachment.data, attachment.name));
+    imgWrap.appendChild(img);
+    userBubble.appendChild(imgWrap);
+  }
+
+  if (text) {
+    const textNode = document.createElement('div');
+    textNode.textContent = text;
+    userBubble.appendChild(textNode);
+  }
+
+  messagesContainer.appendChild(userBubble);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  // Clear input
+  textarea.value = '';
+  textarea.style.height = 'auto';
+  removeProjectPreviewAttachment();
+  if (btnSendPreview) btnSendPreview.disabled = true;
+
+  // Compile draft project system prompt
+  const nameInput = document.getElementById('project-name-input');
+  const descInput = document.getElementById('project-desc-input');
+  const intentInput = document.getElementById('project-intent-input');
+  const contextInput = document.getElementById('project-context-input');
+  const outputInput = document.getElementById('project-output-input');
+  const modelSelect = document.getElementById('project-model-select');
+
+  const draftProject = {
+    name: nameInput?.value.trim() || 'Custom App',
+    description: descInput?.value.trim() || '',
+    intent: intentInput?.value.trim() || '',
+    context: contextInput?.value.trim() || '',
+    outputGuidelines: outputInput?.value.trim() || ''
+  };
+
+  const sysPrompt = compileProjectSystemPrompt(draftProject);
+  const selectedModel = (modelSelect && modelSelect.value) ? modelSelect.value : (appState.settings.model || 'deepseek/deepseek-r1');
+
+  // Assistant bubble placeholder
+  const aiBubble = document.createElement('div');
+  aiBubble.className = 'preview-bubble assistant';
+  aiBubble.innerHTML = '<span class="loading-dots">Thinking...</span>';
+  messagesContainer.appendChild(aiBubble);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  // Format payload
+  let userPayloadContent = text || 'Please examine the attached image.';
+  if (attachment) {
+    userPayloadContent = [
+      { type: 'text', text: text || 'Please analyze this image according to your project guidelines.' },
+      { type: 'image_url', image_url: { url: attachment.data } }
+    ];
+  }
+
+  projectPreviewHistory.push({
+    role: 'user',
+    content: userPayloadContent,
+    rawText: text,
+    attachment: attachment
+  });
+
+  const conversationPayload = [
+    { role: 'system', content: sysPrompt },
+    ...projectPreviewHistory.map(m => ({ role: m.role, content: m.content }))
+  ];
+
+  try {
+    let response;
+    try {
+      response = await puter.ai.chat(conversationPayload, {
+        model: selectedModel,
+        stream: true
+      });
+    } catch (multimodalErr) {
+      if (attachment) {
+        console.warn('Multimodal chat failed, retrying with fallback text representation:', multimodalErr);
+        const fallbackPayload = [
+          { role: 'system', content: sysPrompt },
+          ...projectPreviewHistory.map(m => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content : (m.rawText || '[User attached an image]')
+          }))
+        ];
+        response = await puter.ai.chat(fallbackPayload, {
+          model: selectedModel,
+          stream: true
+        });
+      } else {
+        throw multimodalErr;
+      }
+    }
+
+    aiBubble.innerHTML = '';
+    let fullResponse = '';
+
+    if (response && response[Symbol.asyncIterator]) {
+      for await (const chunk of response) {
+        const textChunk = chunk?.text || chunk?.message?.content || '';
+        fullResponse += textChunk;
+        aiBubble.innerHTML = formatMarkdown(fullResponse);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    } else {
+      fullResponse = response?.message?.content || response?.text || String(response);
+      aiBubble.innerHTML = formatMarkdown(fullResponse);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    projectPreviewHistory.push({
+      role: 'assistant',
+      content: fullResponse
+    });
+  } catch (err) {
+    console.error('Project preview AI error:', err);
+    aiBubble.innerHTML = `<span style="color:var(--danger-color);">Error generating response: ${escapeHtml(err.message || 'Unknown error')}</span>`;
+  }
+}
+
 

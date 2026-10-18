@@ -4,7 +4,7 @@
  * multi-file code decomposition & bundling, Save & Run (Ctrl+S), Puter cloud hosting & export.
  */
 
-import { prepareExecutableHtml, escapeHtml, showToast } from '../utils/helpers.js';
+import { prepareExecutableHtml, escapeHtml, showToast, openImageLightbox } from '../utils/helpers.js';
 import { formatMarkdown } from '../utils/markdown.js';
 import { STARTER_TEMPLATES } from '../config/constants.js';
 import { appState } from '../state/app-state.js';
@@ -38,6 +38,57 @@ export const sandboxFileDirty = {
 };
 
 export let currentSandboxRevisions = [];
+export let currentSandboxAttachment = null;
+
+/**
+ * Attaches a pasted/uploaded image to Sandbox Studio.
+ */
+export function attachSandboxImage(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    currentSandboxAttachment = {
+      name: file.name || 'Pasted Image',
+      dataUrl: reader.result,
+      type: file.type || 'image/png',
+      size: file.size || 0
+    };
+    renderSandboxAttachmentPreview();
+    showToast(`📸 Attached image: ${currentSandboxAttachment.name}`);
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Clears current Sandbox Studio attachment.
+ */
+export function removeSandboxAttachment() {
+  currentSandboxAttachment = null;
+  renderSandboxAttachmentPreview();
+}
+
+/**
+ * Renders thumbnail in Sandbox initial or iteration attachment bar.
+ */
+export function renderSandboxAttachmentPreview() {
+  const initBar = document.getElementById('sandbox-initial-attachment-bar');
+  const initThumb = document.getElementById('sandbox-initial-attachment-thumb');
+  const initName = document.getElementById('sandbox-initial-attachment-name');
+
+  const iterBar = document.getElementById('sandbox-iter-attachment-bar');
+  const iterThumb = document.getElementById('sandbox-iter-attachment-thumb');
+  const iterName = document.getElementById('sandbox-iter-attachment-name');
+
+  const show = !!(currentSandboxAttachment && currentSandboxAttachment.dataUrl);
+
+  if (initBar) initBar.style.display = show ? 'flex' : 'none';
+  if (initThumb && show) initThumb.src = currentSandboxAttachment.dataUrl;
+  if (initName && show) initName.textContent = currentSandboxAttachment.name;
+
+  if (iterBar) iterBar.style.display = show ? 'flex' : 'none';
+  if (iterThumb && show) iterThumb.src = currentSandboxAttachment.dataUrl;
+  if (iterName && show) iterName.textContent = currentSandboxAttachment.name;
+}
 
 /**
  * Pushes a rollback revision snapshot before modifications are applied.
@@ -364,6 +415,19 @@ export function initSandboxStudio() {
         handleSandboxInitialGenerate();
       }
     });
+
+    sandboxInitialPrompt.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (file) attachSandboxImage(file);
+          return;
+        }
+      }
+    });
   }
 
   const sandboxIterationInput = document.getElementById('sandbox-iteration-input');
@@ -380,7 +444,26 @@ export function initSandboxStudio() {
         handleSandboxIterate();
       }
     });
+
+    sandboxIterationInput.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.startsWith('image/')) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (file) attachSandboxImage(file);
+          return;
+        }
+      }
+    });
   }
+
+  const btnRemoveInitAttachment = document.getElementById('btn-remove-sandbox-initial-attachment');
+  if (btnRemoveInitAttachment) btnRemoveInitAttachment.addEventListener('click', removeSandboxAttachment);
+
+  const btnRemoveIterAttachment = document.getElementById('btn-remove-sandbox-iter-attachment');
+  if (btnRemoveIterAttachment) btnRemoveIterAttachment.addEventListener('click', removeSandboxAttachment);
 
   const btnSandboxUndoRevision = document.getElementById('btn-sandbox-undo-revision');
   if (btnSandboxUndoRevision) {
@@ -713,6 +796,8 @@ export function resetSandboxStudio() {
     initialPrompt.style.height = 'auto';
   }
 
+  removeSandboxAttachment();
+
   renderSidebarSandboxAppsList();
   renderSandboxRecentBuilds();
   switchSandboxSubTab('chat');
@@ -843,7 +928,26 @@ export function renderSandboxMessages() {
     bubble.className = `sandbox-chat-bubble ${turn.sender === 'user' ? 'user-bubble' : 'ai-bubble'}`;
 
     if (turn.sender === 'user') {
-      bubble.textContent = turn.text;
+      if (turn.attachment && turn.attachment.dataUrl) {
+        const imgWrap = document.createElement('div');
+        imgWrap.className = 'chat-message-image-wrap';
+        imgWrap.style.marginBottom = '0.45rem';
+        const img = document.createElement('img');
+        img.src = turn.attachment.dataUrl;
+        img.alt = turn.attachment.name || 'Attached image';
+        img.className = 'chat-message-image-thumb';
+        img.title = 'Click to enlarge image';
+        img.addEventListener('click', () => {
+          openImageLightbox(turn.attachment.dataUrl, turn.attachment.name);
+        });
+        imgWrap.appendChild(img);
+        bubble.appendChild(imgWrap);
+      }
+      if (turn.text) {
+        const textSpan = document.createElement('div');
+        textSpan.textContent = turn.text;
+        bubble.appendChild(textSpan);
+      }
     } else {
       const header = document.createElement('div');
       header.className = 'sandbox-building-header';
@@ -1234,9 +1338,19 @@ ${prompt}
 Instructions: Apply the requested modification surgically while keeping all other existing functionality, styling, and logic working. Return the complete updated single-file HTML app in a \`\`\`html code block with NO placeholders.`;
       }
 
+      let userPayloadContent;
+      if (currentSandboxAttachment && currentSandboxAttachment.dataUrl) {
+        userPayloadContent = [
+          { type: 'text', text: userMessage },
+          { type: 'image_url', image_url: { url: currentSandboxAttachment.dataUrl } }
+        ];
+      } else {
+        userPayloadContent = userMessage;
+      }
+
       const messages = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
+        { role: 'user', content: userPayloadContent }
       ];
 
       const modelToUse = appState?.settings?.selectedModel || 'gemini-2.5-flash';
@@ -1394,6 +1508,9 @@ Instructions: Apply the requested modification surgically while keeping all othe
   sandboxOriginalAiFiles = { ...decomposed };
   Object.keys(sandboxFileDirty).forEach(k => sandboxFileDirty[k] = false);
 
+  const attachmentSaved = currentSandboxAttachment ? { ...currentSandboxAttachment } : null;
+  removeSandboxAttachment();
+
   if (isInitial) {
     currentSandboxApp.id = 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     expandedSandboxIds.add(currentSandboxApp.id);
@@ -1401,12 +1518,12 @@ Instructions: Apply the requested modification surgically while keeping all othe
     currentSandboxApp.prompt = prompt;
     currentSandboxApp.code = generatedCode;
     currentSandboxApp.turns = [
-      { sender: 'user', text: prompt },
+      { sender: 'user', text: prompt, attachment: attachmentSaved },
       { sender: 'ai', text: `Built **${appTitle}** with responsive design and modern controls.` }
     ];
   } else {
     currentSandboxApp.code = generatedCode;
-    currentSandboxApp.turns.push({ sender: 'user', text: prompt });
+    currentSandboxApp.turns.push({ sender: 'user', text: prompt, attachment: attachmentSaved });
     currentSandboxApp.turns.push({ sender: 'ai', text: `Updated application: **${escapeHtml(prompt)}**.\n\nChanges compiled across HTML, CSS, and JS.` });
   }
 
