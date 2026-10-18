@@ -2934,6 +2934,104 @@ body.sidebar-closed #btn-toggle-sidebar,
   border-color: var(--accent-color);
 }
 
+/* AI Video Mode Button & Active State */
+#btn-video-mode {
+  transition: all 0.2s ease;
+}
+
+#btn-video-mode.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.45);
+  border-radius: 50%;
+}
+
+.chat-textarea.video-mode {
+  border-color: #ec4899;
+}
+
+/* AI Generated Video Cards */
+.ai-generated-video-card {
+  margin: 0.65rem 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  width: 580px;
+  box-shadow: var(--shadow-md);
+}
+
+.ai-video-container {
+  width: 100%;
+  background: #000000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 240px;
+}
+
+.ai-generated-video {
+  display: block;
+  width: 100%;
+  max-height: 440px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  object-fit: contain;
+}
+
+.ai-video-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.ai-video-footer span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  flex: 1;
+}
+
+/* Video Generating Progress Indicator */
+.video-generating-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+}
+
+.video-generating-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(139, 92, 246, 0.2);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+.video-generating-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.video-generating-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+
 
 
 

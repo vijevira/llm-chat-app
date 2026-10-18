@@ -2668,6 +2668,24 @@
       container.appendChild(imgCard);
     }
 
+    // Optional AI Generated Video Card
+    if (msg.videoGeneration) {
+      const vidCard = document.createElement('div');
+      vidCard.className = 'ai-generated-video-card';
+      vidCard.innerHTML = `
+        <div class="ai-video-container">
+          <video src="${escapeHtml(msg.videoGeneration.url)}" controls autoplay loop playsinline class="ai-generated-video"></video>
+        </div>
+        <div class="ai-video-footer">
+          <span>🎬 ${escapeHtml(msg.videoGeneration.prompt)}</span>
+          <a href="${escapeHtml(msg.videoGeneration.url)}" download="omni_chat_video_${Date.now()}.mp4" class="btn-export-doc" style="text-decoration: none;" target="_blank">
+            ⬇ Download Video (MP4)
+          </a>
+        </div>
+      `;
+      container.appendChild(vidCard);
+    }
+
     const bubble = document.createElement('div');
     bubble.className = `message-bubble ${msg.role}`;
 
@@ -2927,6 +2945,13 @@
 
       renderActiveSession();
 
+      const videoPrompt = isVideoGenerationPrompt(newText);
+      if (videoPrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2vid === 'function') {
+        showToast('Rendering AI video...');
+        await handleVideoGeneration(session, videoPrompt, newText);
+        return;
+      }
+
       const imagePrompt = isImageGenerationPrompt(newText);
       if (imagePrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2img === 'function') {
         showToast('Generating AI image...');
@@ -3045,9 +3070,11 @@
     triggerAssistantResponse(session);
   }
 
-  // --- AI Image Generation Mode & Detection ---
+  // --- AI Image & Video Generation Modes & Detection ---
   let isImageModeActive = false;
+  let isVideoModeActive = false;
   const btnImageMode = document.getElementById('btn-image-mode');
+  const btnVideoMode = document.getElementById('btn-video-mode');
 
   function updateImageModeUI() {
     if (btnImageMode) {
@@ -3056,10 +3083,31 @@
     if (chatTextarea) {
       if (isImageModeActive) {
         chatTextarea.classList.add('image-mode');
+        chatTextarea.classList.remove('video-mode');
         chatTextarea.placeholder = '🎨 Describe the image or logo to generate (e.g. modern logo for Omni Chat app)...';
       } else {
         chatTextarea.classList.remove('image-mode');
-        chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image...';
+        if (!isVideoModeActive) {
+          chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image, /video...';
+        }
+      }
+    }
+  }
+
+  function updateVideoModeUI() {
+    if (btnVideoMode) {
+      btnVideoMode.classList.toggle('active', isVideoModeActive);
+    }
+    if (chatTextarea) {
+      if (isVideoModeActive) {
+        chatTextarea.classList.add('video-mode');
+        chatTextarea.classList.remove('image-mode');
+        chatTextarea.placeholder = '🎬 Describe the video to generate (e.g. cinematic aerial view of city at night)...';
+      } else {
+        chatTextarea.classList.remove('video-mode');
+        if (!isImageModeActive) {
+          chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image, /video...';
+        }
       }
     }
   }
@@ -3067,9 +3115,30 @@
   if (btnImageMode) {
     btnImageMode.addEventListener('click', () => {
       isImageModeActive = !isImageModeActive;
+      if (isImageModeActive && isVideoModeActive) {
+        isVideoModeActive = false;
+        updateVideoModeUI();
+      }
       updateImageModeUI();
       if (isImageModeActive) {
         showToast('🎨 AI Image Mode active! Enter any description to generate an image.');
+      } else {
+        showToast('Switched to chat mode.');
+      }
+      chatTextarea.focus();
+    });
+  }
+
+  if (btnVideoMode) {
+    btnVideoMode.addEventListener('click', () => {
+      isVideoModeActive = !isVideoModeActive;
+      if (isVideoModeActive && isImageModeActive) {
+        isImageModeActive = false;
+        updateImageModeUI();
+      }
+      updateVideoModeUI();
+      if (isVideoModeActive) {
+        showToast('🎬 AI Video Mode active! Enter any description to render a video clip.');
       } else {
         showToast('Switched to chat mode.');
       }
@@ -3232,6 +3301,164 @@
     }
   }
 
+  function isVideoGenerationPrompt(text) {
+    if (!text || typeof text !== 'string') return null;
+    const trimmed = text.trim();
+
+    // 1. Explicit command prefixes: /video, /vid, /clip, /film, /movie, /animate, /animation
+    const slashMatch = trimmed.match(/^\/(?:video|vid|clip|film|movie|animate|animation)\s+(.+)/i);
+    if (slashMatch && slashMatch[1].trim()) {
+      return slashMatch[1].trim();
+    }
+
+    // 2. Video and motion nouns
+    const videoNouns = [
+      'video', 'videos', 'clip', 'clips', 'short video', 'footage', 'film',
+      'movie', 'movies', 'animation', 'animations', 'motion graphic', 'motion graphics',
+      'reel', 'reels', 'b-roll', 'timelapse', 'cinematic video', 'cgi clip', 'cgi video'
+    ];
+    const nounPattern = videoNouns.join('|');
+
+    // Pattern A: [please/can you/could you] [generate/create/make/render/produce/shoot/animate] [a/an/the?] <videoNoun> [of/for/showing/with/depicting/about] <subject>
+    const verbNounRegex = new RegExp(
+      '^(?:(?:please|can you|could you|kindly)\\s+)?(?:generate|create|produce|render|animate|make|shoot|show me|record|build)\\s+(?:me\\s+)?(?:an?\\s+|the\\s+)?(' +
+      nounPattern +
+      ')\\s*(?:of|for|showing|with|depicting|about)?\\s*(.+)$',
+      'i'
+    );
+    const vnMatch = trimmed.match(verbNounRegex);
+    if (vnMatch && vnMatch[2] && vnMatch[2].trim().length > 1) {
+      const noun = vnMatch[1].trim();
+      const subject = vnMatch[2].trim();
+      return `${noun} of ${subject}`;
+    }
+
+    // Pattern B: Direct creative motion verbs: "animate a spaceship taking off", "film a sunset over mountains"
+    const directVerbRegex = /^(?:(?:please|can you|could you|kindly)\s+)?(?:animate|film|record)\s+(?:me\s+)?(?:an?\s+|the\s+)?(.+)$/i;
+    const dvMatch = trimmed.match(directVerbRegex);
+    if (dvMatch && dvMatch[1] && dvMatch[1].trim().length > 2) {
+      return dvMatch[1].trim();
+    }
+
+    // Pattern C: "video of...", "clip of..." without leading verb
+    const directNounRegex = new RegExp('^(?:an?\\s+|the\\s+)?(' + nounPattern + ')\\s+(?:of|for|showing)\\s+(.+)$', 'i');
+    const dnMatch = trimmed.match(directNounRegex);
+    if (dnMatch && dnMatch[2] && dnMatch[2].trim().length > 1) {
+      return trimmed;
+    }
+
+    return null;
+  }
+
+  async function handleVideoGeneration(session, promptText, originalUserPrompt) {
+    console.log('[Omni Video] Generating video via puter.ai.txt2vid with prompt:', promptText);
+
+    const assistantMsg = {
+      role: 'assistant',
+      content: `Here is your generated video for: **"${promptText}"**`,
+      model: 'puter.ai.txt2vid',
+      timestamp: Date.now()
+    };
+
+    const assistantWrapper = document.createElement('div');
+    assistantWrapper.className = 'message-wrapper assistant';
+
+    const assistantAvatar = document.createElement('div');
+    assistantAvatar.className = 'message-avatar assistant';
+    assistantAvatar.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path fill="url(#geminiSparkleGrad)" d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+      </svg>
+    `;
+
+    const assistantContainer = document.createElement('div');
+    assistantContainer.className = 'message-content-container';
+
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'message-bubble assistant markdown-body';
+    assistantBubble.innerHTML = `
+      <div class="video-generating-indicator">
+        <div class="video-generating-spinner"></div>
+        <div class="video-generating-text">
+          <strong>🎬 Generating AI Video:</strong> "${escapeHtml(promptText)}"
+          <div class="video-generating-sub">Rendering motion and frames via Puter AI. This typically takes 15–40 seconds...</div>
+        </div>
+      </div>
+    `;
+
+    assistantContainer.appendChild(assistantBubble);
+    assistantWrapper.appendChild(assistantAvatar);
+    assistantWrapper.appendChild(assistantContainer);
+    messagesInner.appendChild(assistantWrapper);
+    scrollToBottom();
+
+    try {
+      showToast('Rendering AI video clip (15–40s)...');
+
+      if (typeof puter === 'undefined' || !puter.ai || typeof puter.ai.txt2vid !== 'function') {
+        throw new Error('Puter AI txt2vid is not available. Please verify Puter.js is loaded.');
+      }
+
+      const vidResult = await puter.ai.txt2vid(promptText, {
+        model: 'wan-ai/wan2.7-t2v'
+      });
+
+      let videoSrc = null;
+      if (typeof vidResult === 'string') {
+        videoSrc = vidResult;
+      } else if (vidResult && typeof vidResult.src === 'string' && vidResult.src) {
+        videoSrc = vidResult.src;
+      } else if (vidResult && typeof vidResult.getAttribute === 'function' && vidResult.getAttribute('src')) {
+        videoSrc = vidResult.getAttribute('src');
+      } else if (vidResult && vidResult.url) {
+        videoSrc = vidResult.url;
+      } else if (vidResult instanceof Blob) {
+        videoSrc = URL.createObjectURL(vidResult);
+      } else if (vidResult && vidResult.tagName && vidResult.tagName.toLowerCase() === 'video') {
+        videoSrc = vidResult.src;
+      }
+
+      if (!videoSrc) {
+        throw new Error('No video URL or element returned from Puter AI txt2vid.');
+      }
+
+      assistantBubble.innerHTML = `Here is your generated video for: **"${escapeHtml(promptText)}"**`;
+      assistantMsg.videoGeneration = {
+        prompt: promptText,
+        url: videoSrc
+      };
+
+      session.messages.push(assistantMsg);
+      session.updatedAt = Date.now();
+      await persistSessions();
+
+      renderActiveSession();
+      showToast('Video generated successfully!');
+    } catch (err) {
+      console.warn('[Omni Video] Generation error:', err);
+      const isAuthErr = (err.message || '').toLowerCase().includes('sign in') ||
+                        (err.message || '').toLowerCase().includes('auth') ||
+                        (err.message || '').toLowerCase().includes('login');
+      if (isAuthErr) {
+        assistantBubble.innerHTML = `
+          <div class="chat-error-card">
+            <div class="chat-error-header"><strong>Puter Sign In Required</strong></div>
+            <div class="chat-error-body">Please sign in with Puter to generate AI videos. Puter accounts receive free AI generation credits.</div>
+            <div class="chat-error-actions">
+              <button class="btn-recovery" id="btn-err-signin-puter-vid">Sign In with Puter</button>
+            </div>
+          </div>
+        `;
+        assistantBubble.querySelector('#btn-err-signin-puter-vid')?.addEventListener('click', () => {
+          puter.auth.signIn();
+        });
+      } else {
+        assistantBubble.innerHTML = `<span style="color: var(--danger-color);">⚠️ Video generation failed: ${escapeHtml(err.message || 'Error occurred')}. Switching to text response...</span>`;
+        await triggerAssistantResponse(session);
+      }
+    }
+  }
+
   // --- Send Message & Puter AI Streaming ---
   async function handleSend() {
     const text = chatTextarea.value.trim();
@@ -3288,6 +3515,19 @@
     const userEl = createMessageDOM(userMsg, session.messages.length - 1);
     messagesInner.appendChild(userEl);
     scrollToBottom();
+
+    // Check if user is asking for video generation (via mode or natural prompt)
+    let videoPrompt = null;
+    if (isVideoModeActive) {
+      videoPrompt = text.replace(/^\/(?:video|vid|clip|film|movie|animate|animation)\s+/i, '').trim() || text;
+    } else {
+      videoPrompt = isVideoGenerationPrompt(text);
+    }
+
+    if (videoPrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2vid === 'function') {
+      await handleVideoGeneration(session, videoPrompt, text);
+      return;
+    }
 
     // Check if user is asking for image generation (via mode or natural prompt)
     let imagePrompt = null;
