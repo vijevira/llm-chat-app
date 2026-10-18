@@ -7,7 +7,7 @@
   'use strict';
 
   // --- Constants & Presets ---
-  const APP_VERSION = 'v1.0.0';
+  const APP_VERSION = 'v1.1.0';
   const DEFAULT_MODEL = 'gpt-4o-mini';
   const STORAGE_KEY_SESSIONS = 'omni_chat_sessions';
   const STORAGE_KEY_SETTINGS = 'omni_chat_settings';
