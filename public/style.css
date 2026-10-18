@@ -2918,36 +2918,399 @@ body.sidebar-closed #btn-toggle-sidebar,
   background: var(--hover-color);
 }
 
-/* AI Image Mode Button & Active State */
-#btn-image-mode {
-  transition: all 0.2s ease;
+/* --- Gemini Chatbox UI Redesign: Left + Tools Popover, Right Mic & Model Picker --- */
+
+/* Left Side: + Button & Dropdown Wrapper */
+.chat-tools-dropdown-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-#btn-image-mode.active {
-  color: #ffffff;
-  background: var(--accent-gradient, linear-gradient(135deg, #4f46e5, #06b6d4));
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.45);
+.btn-chat-plus {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border: none;
+  background-color: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-chat-plus:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-chat-plus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+.btn-chat-plus.open {
+  background-color: var(--accent-light);
+  color: var(--accent-color);
+}
+
+.btn-chat-plus .icon-plus-svg {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-chat-plus.open .icon-plus-svg {
+  transform: rotate(45deg);
+}
+
+/* Gemini Floating Tools Popover Menu */
+.chat-tools-popover {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 0;
+  min-width: 270px;
+  max-width: 320px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28), 0 3px 12px rgba(0, 0, 0, 0.16);
+  padding: 0.45rem;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  transform-origin: bottom left;
+  animation: popoverSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popoverSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-tools-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.chat-tool-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.chat-tool-item:hover {
+  background-color: var(--bg-secondary);
+  transform: translateX(2px);
+}
+
+.chat-tool-item:active {
+  transform: scale(0.99);
+}
+
+.chat-tool-item:focus-visible {
+  outline: none;
+  background-color: var(--bg-secondary);
+  box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+.chat-tool-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.chat-tool-item:hover .chat-tool-icon {
+  transform: scale(1.08);
+}
+
+.tool-icon-file {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.tool-icon-image-upload {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.tool-icon-gen-image {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(236, 72, 153, 0.18));
+  color: #8b5cf6;
+}
+
+.tool-icon-gen-video {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.18), rgba(245, 158, 11, 0.18));
+  color: #ec4899;
+}
+
+.tool-icon-gen-music {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(168, 85, 247, 0.18));
+  color: #0ea5e9;
+}
+
+.chat-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-tool-title {
+  font-size: 0.88rem;
+  font-weight: 550;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.chat-tool-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-tool-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: var(--accent-light);
+  color: var(--accent-color);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Popover Pagebreak / Divider */
+.chat-tools-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 0.35rem 0.4rem;
+  opacity: 0.85;
+}
+
+/* Active Mode Indicator Bar */
+.active-mode-indicator {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem 0.35rem 0.5rem;
+}
+
+.active-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--accent-light);
+  color: var(--accent-color);
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  animation: modeFadeIn 0.2s ease-out;
+}
+
+.active-mode-pill.mode-video {
+  background: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+  border-color: rgba(236, 72, 153, 0.3);
+}
+
+.active-mode-pill.mode-music {
+  background: rgba(14, 165, 233, 0.15);
+  color: #0ea5e9;
+  border-color: rgba(14, 165, 233, 0.3);
+}
+
+@keyframes modeFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.btn-clear-mode {
+  padding: 0.1rem;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
+  font-size: 0.7rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.15s, background-color 0.15s;
 }
 
+.btn-clear-mode:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* Chat Textarea Dynamic Mode Border Accents */
 .chat-textarea.image-mode {
   border-color: var(--accent-color);
 }
 
-/* AI Video Mode Button & Active State */
-#btn-video-mode {
-  transition: all 0.2s ease;
-}
-
-#btn-video-mode.active {
-  color: #ffffff;
-  background: linear-gradient(135deg, #ec4899, #8b5cf6);
-  box-shadow: 0 0 12px rgba(236, 72, 153, 0.45);
-  border-radius: 50%;
-}
-
 .chat-textarea.video-mode {
   border-color: #ec4899;
+}
+
+.chat-textarea.music-mode {
+  border-color: #0ea5e9;
+}
+
+/* Chatbox Second Right: Model Change Pill Button */
+.chat-model-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.65rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 155px;
+  flex-shrink: 0;
+}
+
+.chat-model-picker-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.chat-model-sparkle {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+
+.chat-model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 95px;
+}
+
+.chat-model-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Chatbox Right: Voice Dictation Mic Button */
+.btn-mic {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-mic:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-mic:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+.btn-mic.listening {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.15);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
+}
+
+.mic-pulse-ring {
+  display: none;
+}
+
+.btn-mic.listening .mic-pulse-ring {
+  display: block;
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid #ef4444;
+  animation: micPulseWave 1.4s infinite cubic-bezier(0.25, 1, 0.5, 1);
+  pointer-events: none;
+}
+
+@keyframes micPulseWave {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Responsive tweaks for chatbox */
+@media (max-width: 640px) {
+  .chat-model-picker-btn {
+    padding: 0.28rem 0.45rem;
+    max-width: 110px;
+  }
+  .chat-model-name {
+    max-width: 60px;
+  }
+  .chat-tools-popover {
+    min-width: 250px;
+    max-width: 290px;
+  }
 }
 
 /* AI Generated Video Cards */
@@ -3029,6 +3392,142 @@ body.sidebar-closed #btn-toggle-sidebar,
   font-size: 0.78rem;
   color: var(--text-muted);
   margin-top: 0.15rem;
+}
+
+/* AI Generated Music & Audio Cards */
+.ai-generated-music-card {
+  margin: 0.75rem 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-md);
+  max-width: 100%;
+  width: 560px;
+  display: flex;
+  flex-direction: column;
+}
+
+.music-card-header {
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(168, 85, 247, 0.12));
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.music-play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+
+.music-play-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 18px rgba(14, 165, 233, 0.45);
+}
+
+.music-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.music-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-subtitle {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.2rem;
+}
+
+.music-waveform-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 24px;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.waveform-bar {
+  width: 3px;
+  height: 6px;
+  background-color: var(--text-muted);
+  border-radius: 2px;
+  transition: height 0.15s ease, background-color 0.2s ease;
+}
+
+.ai-generated-music-card.playing .waveform-bar {
+  background: linear-gradient(to top, #0ea5e9, #8b5cf6);
+  animation: waveBarBounce 0.8s ease-in-out infinite alternate;
+}
+
+.ai-generated-music-card.playing .waveform-bar:nth-child(1) { animation-delay: 0.0s; }
+.ai-generated-music-card.playing .waveform-bar:nth-child(2) { animation-delay: 0.2s; }
+.ai-generated-music-card.playing .waveform-bar:nth-child(3) { animation-delay: 0.4s; }
+.ai-generated-music-card.playing .waveform-bar:nth-child(4) { animation-delay: 0.1s; }
+.ai-generated-music-card.playing .waveform-bar:nth-child(5) { animation-delay: 0.3s; }
+.ai-generated-music-card.playing .waveform-bar:nth-child(6) { animation-delay: 0.5s; }
+
+@keyframes waveBarBounce {
+  0% { height: 4px; }
+  100% { height: 22px; }
+}
+
+.music-card-body {
+  padding: 0.85rem 1.15rem;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+}
+
+.music-composition-notes {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  background: var(--bg-secondary);
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #0ea5e9;
+  color: var(--text-secondary);
+}
+
+.music-tags-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.music-tag {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
 }
 
 

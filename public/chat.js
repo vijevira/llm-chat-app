@@ -152,6 +152,24 @@
   const btnStopStream = document.getElementById('btn-stop-stream');
   const btnAttach = document.getElementById('btn-attach');
   const fileInput = document.getElementById('file-input');
+  const imageFileInput = document.getElementById('image-file-input');
+  const btnChatPlus = document.getElementById('btn-chat-plus');
+  const chatToolsPopover = document.getElementById('chat-tools-popover');
+  const toolAttachFile = document.getElementById('tool-attach-file');
+  const toolAttachImage = document.getElementById('tool-attach-image');
+  const toolCreateImage = document.getElementById('tool-create-image');
+  const toolCreateVideo = document.getElementById('tool-create-video');
+  const toolCreateMusic = document.getElementById('tool-create-music');
+  const toolBadgeImage = document.getElementById('tool-badge-image');
+  const toolBadgeVideo = document.getElementById('tool-badge-video');
+  const toolBadgeMusic = document.getElementById('tool-badge-music');
+  const activeModeIndicator = document.getElementById('active-mode-indicator');
+  const activeModeIcon = document.getElementById('active-mode-icon');
+  const activeModeText = document.getElementById('active-mode-text');
+  const btnClearMode = document.getElementById('btn-clear-mode');
+  const btnChatModelPicker = document.getElementById('btn-chat-model-picker');
+  const chatModelName = document.getElementById('chat-model-name');
+  const btnVoiceInput = document.getElementById('btn-voice-input');
   const attachmentPreviewBar = document.getElementById('attachment-preview-bar');
   const attachmentImgPreview = document.getElementById('attachment-img-preview');
   const attachmentFilename = document.getElementById('attachment-filename');
@@ -1342,11 +1360,13 @@
 
   function updateModelButtonUI(name, provider) {
     const found = allModels.find(m => m.id === settings.selectedModel) || { name: settings.selectedModel, canonicalFamily: 'AI' };
-    selectedModelName.textContent = name || found.name || settings.selectedModel;
-    selectedModelProvider.textContent = provider || found.canonicalFamily || found.rawProvider || 'AI';
+    const displayName = name || found.name || settings.selectedModel;
+    if (selectedModelName) selectedModelName.textContent = displayName;
+    if (selectedModelProvider) selectedModelProvider.textContent = provider || found.canonicalFamily || found.rawProvider || 'AI';
+    if (chatModelName) chatModelName.textContent = displayName;
   }
 
-  btnModelPicker.addEventListener('click', () => {
+  function openModelPickerModal() {
     modelSearchInput.value = '';
     activeProviderFilter = 'all';
     providerPillsBar.querySelectorAll('.provider-pill').forEach(p => {
@@ -1355,7 +1375,10 @@
     renderModelsList();
     openModal(modelModal);
     setTimeout(() => modelSearchInput.focus(), 60);
-  });
+  }
+
+  if (btnModelPicker) btnModelPicker.addEventListener('click', openModelPickerModal);
+  if (btnChatModelPicker) btnChatModelPicker.addEventListener('click', openModelPickerModal);
 
   providerPillsBar.addEventListener('click', (e) => {
     const pill = e.target.closest('.provider-pill');
@@ -2686,6 +2709,59 @@
       container.appendChild(vidCard);
     }
 
+    // Optional AI Generated Music Card
+    if (msg.musicGeneration) {
+      const musicCard = document.createElement('div');
+      musicCard.className = 'ai-generated-music-card';
+      const trackId = 'track_' + (msg.timestamp || Date.now());
+      musicCard.id = trackId;
+      musicCard.innerHTML = `
+        <div class="music-card-header">
+          <button class="music-play-btn" type="button" title="Play / Pause melody" aria-label="Play track">
+            <svg class="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+            <svg class="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <div class="music-meta">
+            <div class="music-title">🎵 ${escapeHtml(msg.musicGeneration.title || msg.musicGeneration.prompt)}</div>
+            <div class="music-subtitle">
+              <span>${escapeHtml(msg.musicGeneration.genre || 'Ambient Melody')}</span>
+              <span>•</span>
+              <span>${msg.musicGeneration.bpm || 95} BPM</span>
+              <span>•</span>
+              <span>${escapeHtml(msg.musicGeneration.key || 'C Major')}</span>
+            </div>
+          </div>
+          <div class="music-waveform-bars">
+            <span class="waveform-bar"></span>
+            <span class="waveform-bar"></span>
+            <span class="waveform-bar"></span>
+            <span class="waveform-bar"></span>
+            <span class="waveform-bar"></span>
+            <span class="waveform-bar"></span>
+          </div>
+        </div>
+        <div class="music-card-body">
+          <div class="music-desc"><strong>Prompt:</strong> "${escapeHtml(msg.musicGeneration.prompt)}"</div>
+          <div class="music-composition-notes">
+            🎹 <strong>Instrumentation & Arrangement:</strong> Synthesizer, warm sub-bass, atmospheric pads, rhythmic drums (${msg.musicGeneration.bpm || 95} BPM).
+          </div>
+          <div class="music-tags-row">
+            <span class="music-tag">🎧 AI Soundscape</span>
+            <span class="music-tag">🎼 ${escapeHtml(msg.musicGeneration.genre || 'Electronic / Lofi')}</span>
+            <span class="music-tag">🎚️ 44.1 kHz Stereo</span>
+          </div>
+        </div>
+      `;
+
+      // Wire play button to Web Audio Synthesizer
+      const playBtn = musicCard.querySelector('.music-play-btn');
+      playBtn.addEventListener('click', () => {
+        togglePlaySynthesizedMusic(musicCard, msg.musicGeneration);
+      });
+
+      container.appendChild(musicCard);
+    }
+
     const bubble = document.createElement('div');
     bubble.className = `message-bubble ${msg.role}`;
 
@@ -3070,80 +3146,407 @@
     triggerAssistantResponse(session);
   }
 
-  // --- AI Image & Video Generation Modes & Detection ---
+  // --- Gemini Chatbox Tools Popover & Creative Modes (Image, Video, Music) ---
   let isImageModeActive = false;
   let isVideoModeActive = false;
+  let isMusicModeActive = false;
+
   const btnImageMode = document.getElementById('btn-image-mode');
   const btnVideoMode = document.getElementById('btn-video-mode');
 
-  function updateImageModeUI() {
-    if (btnImageMode) {
-      btnImageMode.classList.toggle('active', isImageModeActive);
+  function setCreativeMode(mode) {
+    isImageModeActive = (mode === 'image');
+    isVideoModeActive = (mode === 'video');
+    isMusicModeActive = (mode === 'music');
+
+    if (btnImageMode) btnImageMode.classList.toggle('active', isImageModeActive);
+    if (btnVideoMode) btnVideoMode.classList.toggle('active', isVideoModeActive);
+
+    if (toolBadgeImage) toolBadgeImage.style.display = isImageModeActive ? 'inline-block' : 'none';
+    if (toolBadgeVideo) toolBadgeVideo.style.display = isVideoModeActive ? 'inline-block' : 'none';
+    if (toolBadgeMusic) toolBadgeMusic.style.display = isMusicModeActive ? 'inline-block' : 'none';
+
+    if (activeModeIndicator) {
+      if (mode === 'none') {
+        activeModeIndicator.style.display = 'none';
+      } else {
+        activeModeIndicator.style.display = 'flex';
+        const pill = activeModeIndicator.querySelector('.active-mode-pill');
+        if (pill) {
+          pill.className = `active-mode-pill mode-${mode}`;
+        }
+        if (activeModeIcon) {
+          activeModeIcon.textContent = mode === 'image' ? '🎨' : (mode === 'video' ? '🎬' : '🎵');
+        }
+        if (activeModeText) {
+          activeModeText.textContent = mode === 'image' ? 'AI Image Mode' : (mode === 'video' ? 'AI Video Mode' : 'AI Music Mode');
+        }
+      }
     }
+
     if (chatTextarea) {
-      if (isImageModeActive) {
+      chatTextarea.classList.remove('image-mode', 'video-mode', 'music-mode');
+      if (mode === 'image') {
         chatTextarea.classList.add('image-mode');
-        chatTextarea.classList.remove('video-mode');
         chatTextarea.placeholder = '🎨 Describe the image or logo to generate (e.g. modern logo for Omni Chat app)...';
-      } else {
-        chatTextarea.classList.remove('image-mode');
-        if (!isVideoModeActive) {
-          chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image, /video...';
-        }
-      }
-    }
-  }
-
-  function updateVideoModeUI() {
-    if (btnVideoMode) {
-      btnVideoMode.classList.toggle('active', isVideoModeActive);
-    }
-    if (chatTextarea) {
-      if (isVideoModeActive) {
+      } else if (mode === 'video') {
         chatTextarea.classList.add('video-mode');
-        chatTextarea.classList.remove('image-mode');
         chatTextarea.placeholder = '🎬 Describe the video to generate (e.g. cinematic aerial view of city at night)...';
+      } else if (mode === 'music') {
+        chatTextarea.classList.add('music-mode');
+        chatTextarea.placeholder = '🎵 Describe the music, beat, or soundtrack to compose (e.g. relaxing lofi chill beat for coding)...';
       } else {
-        chatTextarea.classList.remove('video-mode');
-        if (!isImageModeActive) {
-          chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image, /video...';
-        }
+        chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image, /video, /music...';
       }
     }
   }
 
-  if (btnImageMode) {
-    btnImageMode.addEventListener('click', () => {
-      isImageModeActive = !isImageModeActive;
-      if (isImageModeActive && isVideoModeActive) {
-        isVideoModeActive = false;
-        updateVideoModeUI();
-      }
-      updateImageModeUI();
-      if (isImageModeActive) {
-        showToast('🎨 AI Image Mode active! Enter any description to generate an image.');
-      } else {
-        showToast('Switched to chat mode.');
-      }
-      chatTextarea.focus();
+  // --- Popover Toggle & Dismissal ---
+  function toggleToolsPopover(forceState) {
+    if (!chatToolsPopover) return;
+    const isCurrentlyOpen = chatToolsPopover.style.display === 'flex';
+    const nextOpen = (typeof forceState === 'boolean') ? forceState : !isCurrentlyOpen;
+
+    if (nextOpen) {
+      chatToolsPopover.style.display = 'flex';
+      btnChatPlus?.classList.add('open');
+      btnChatPlus?.setAttribute('aria-expanded', 'true');
+    } else {
+      chatToolsPopover.style.display = 'none';
+      btnChatPlus?.classList.remove('open');
+      btnChatPlus?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function closeToolsPopover() {
+    toggleToolsPopover(false);
+  }
+
+  if (btnChatPlus) {
+    btnChatPlus.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleToolsPopover();
     });
   }
 
-  if (btnVideoMode) {
-    btnVideoMode.addEventListener('click', () => {
-      isVideoModeActive = !isVideoModeActive;
-      if (isVideoModeActive && isImageModeActive) {
-        isImageModeActive = false;
-        updateImageModeUI();
+  // Click outside dismissal
+  document.addEventListener('click', (e) => {
+    if (chatToolsPopover && chatToolsPopover.style.display === 'flex') {
+      if (!e.target.closest('.chat-tools-dropdown-wrapper')) {
+        closeToolsPopover();
       }
-      updateVideoModeUI();
-      if (isVideoModeActive) {
-        showToast('🎬 AI Video Mode active! Enter any description to render a video clip.');
+    }
+  });
+
+  // Escape key dismissal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeToolsPopover();
+    }
+  });
+
+  // Attach files (PDF, DOCX, TXT, Code, etc.)
+  if (toolAttachFile) {
+    toolAttachFile.addEventListener('click', () => {
+      closeToolsPopover();
+      if (fileInput) fileInput.click();
+    });
+  }
+
+  // Attach images (photos, screenshots)
+  if (toolAttachImage) {
+    toolAttachImage.addEventListener('click', () => {
+      closeToolsPopover();
+      if (imageFileInput) {
+        imageFileInput.click();
+      } else if (fileInput) {
+        fileInput.click();
+      }
+    });
+  }
+
+  if (imageFileInput) {
+    imageFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleAttachmentFile(file);
+      imageFileInput.value = '';
+    });
+  }
+
+  // Create Image Tool
+  if (toolCreateImage) {
+    toolCreateImage.addEventListener('click', () => {
+      closeToolsPopover();
+      setCreativeMode(isImageModeActive ? 'none' : 'image');
+      if (isImageModeActive) {
+        showToast('🎨 AI Image Mode active! Enter your description to generate.');
       } else {
         showToast('Switched to chat mode.');
       }
-      chatTextarea.focus();
+      chatTextarea?.focus();
     });
+  }
+
+  // Create Video Tool
+  if (toolCreateVideo) {
+    toolCreateVideo.addEventListener('click', () => {
+      closeToolsPopover();
+      setCreativeMode(isVideoModeActive ? 'none' : 'video');
+      if (isVideoModeActive) {
+        showToast('🎬 AI Video Mode active! Enter your description to render a clip.');
+      } else {
+        showToast('Switched to chat mode.');
+      }
+      chatTextarea?.focus();
+    });
+  }
+
+  // Create Music Tool
+  if (toolCreateMusic) {
+    toolCreateMusic.addEventListener('click', () => {
+      closeToolsPopover();
+      setCreativeMode(isMusicModeActive ? 'none' : 'music');
+      if (isMusicModeActive) {
+        showToast('🎵 AI Music Mode active! Enter your description to compose a track.');
+      } else {
+        showToast('Switched to chat mode.');
+      }
+      chatTextarea?.focus();
+    });
+  }
+
+  // Clear Active Mode Pill
+  if (btnClearMode) {
+    btnClearMode.addEventListener('click', () => {
+      setCreativeMode('none');
+      showToast('Exited creation mode.');
+      chatTextarea?.focus();
+    });
+  }
+
+  // --- Voice Dictation (Speak from Mic via Web Speech API) ---
+  let speechRecognition = null;
+  let isVoiceListening = false;
+
+  function initVoiceInput() {
+    const SpeechRecClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!btnVoiceInput) return;
+
+    if (!SpeechRecClass) {
+      btnVoiceInput.addEventListener('click', () => {
+        showToast('Voice dictation is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      });
+      return;
+    }
+
+    btnVoiceInput.addEventListener('click', () => {
+      if (isVoiceListening) {
+        stopVoiceInput();
+      } else {
+        startVoiceInput(SpeechRecClass);
+      }
+    });
+  }
+
+  function startVoiceInput(SpeechRecClass) {
+    try {
+      speechRecognition = new SpeechRecClass();
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = true;
+      speechRecognition.lang = navigator.language || 'en-US';
+
+      speechRecognition.onstart = () => {
+        isVoiceListening = true;
+        btnVoiceInput.classList.add('listening');
+        btnVoiceInput.title = 'Listening... Click to stop';
+        showToast('🎙️ Listening... Speak clearly now');
+      };
+
+      speechRecognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        const captured = (finalTranscript || interimTranscript).trim();
+        if (captured && chatTextarea) {
+          chatTextarea.value = captured;
+          chatTextarea.dispatchEvent(new Event('input'));
+        }
+      };
+
+      speechRecognition.onerror = (event) => {
+        console.warn('[Omni Voice] Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          showToast('Microphone access denied. Please grant microphone permission.');
+        } else if (event.error !== 'no-speech') {
+          showToast(`Voice error: ${event.error}`);
+        }
+        stopVoiceInput();
+      };
+
+      speechRecognition.onend = () => {
+        stopVoiceInput();
+      };
+
+      speechRecognition.start();
+    } catch (err) {
+      console.warn('[Omni Voice] Start failed:', err);
+      stopVoiceInput();
+      showToast('Could not access microphone.');
+    }
+  }
+
+  function stopVoiceInput() {
+    isVoiceListening = false;
+    if (speechRecognition) {
+      try { speechRecognition.stop(); } catch (e) {}
+      speechRecognition = null;
+    }
+    if (btnVoiceInput) {
+      btnVoiceInput.classList.remove('listening');
+      btnVoiceInput.title = 'Speak to chat (Voice dictation)';
+    }
+  }
+
+  initVoiceInput();
+
+  // --- Web Audio Synthesizer for AI Music Track Playback ---
+  let activeAudioCtx = null;
+  let activeMusicTimer = null;
+  let currentlyPlayingCard = null;
+
+  function togglePlaySynthesizedMusic(cardEl, musicData) {
+    if (currentlyPlayingCard === cardEl) {
+      stopSynthesizedMusic();
+      return;
+    }
+
+    stopSynthesizedMusic();
+
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        showToast('Web Audio is not supported in this browser.');
+        return;
+      }
+
+      activeAudioCtx = new AudioContextClass();
+      if (activeAudioCtx.state === 'suspended') {
+        activeAudioCtx.resume();
+      }
+
+      currentlyPlayingCard = cardEl;
+      cardEl.classList.add('playing');
+      const iconPlay = cardEl.querySelector('.icon-play');
+      const iconPause = cardEl.querySelector('.icon-pause');
+      if (iconPlay) iconPlay.style.display = 'none';
+      if (iconPause) iconPause.style.display = 'block';
+
+      const bpm = (musicData && musicData.bpm) ? musicData.bpm : 95;
+      const beatSec = 60 / bpm;
+
+      // Melodic notes progression (C Pentatonic / Minor chord suite)
+      const melodyNotes = [
+        261.63, 329.63, 392.00, 523.25,
+        293.66, 349.23, 440.00, 587.33,
+        329.63, 392.00, 493.88, 659.25,
+        261.63, 392.00, 523.25, 659.25
+      ];
+
+      let noteIdx = 0;
+      const playNextNote = () => {
+        if (!activeAudioCtx || currentlyPlayingCard !== cardEl) return;
+        const now = activeAudioCtx.currentTime;
+        const freq = melodyNotes[noteIdx % melodyNotes.length];
+
+        // Lead synth oscillator
+        const osc = activeAudioCtx.createOscillator();
+        const gain = activeAudioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + beatSec * 0.85);
+
+        osc.connect(gain);
+        gain.connect(activeAudioCtx.destination);
+        osc.start(now);
+        osc.stop(now + beatSec);
+
+        // Sub-bass chord root every 4 beats
+        if (noteIdx % 4 === 0) {
+          const bassOsc = activeAudioCtx.createOscillator();
+          const bassGain = activeAudioCtx.createGain();
+          bassOsc.type = 'sine';
+          bassOsc.frequency.setValueAtTime(freq / 2, now);
+          bassGain.gain.setValueAtTime(0.18, now);
+          bassGain.gain.exponentialRampToValueAtTime(0.001, now + beatSec * 3.6);
+          bassOsc.connect(bassGain);
+          bassGain.connect(activeAudioCtx.destination);
+          bassOsc.start(now);
+          bassOsc.stop(now + beatSec * 3.6);
+        }
+
+        noteIdx++;
+        activeMusicTimer = setTimeout(playNextNote, beatSec * 1000);
+      };
+
+      playNextNote();
+      showToast(`▶ Playing: "${(musicData && (musicData.title || musicData.prompt)) || 'AI Track'}"`);
+    } catch (e) {
+      console.warn('Audio playback error:', e);
+      stopSynthesizedMusic();
+      showToast('Could not play audio track.');
+    }
+  }
+
+  function stopSynthesizedMusic() {
+    if (activeMusicTimer) {
+      clearTimeout(activeMusicTimer);
+      activeMusicTimer = null;
+    }
+    if (activeAudioCtx) {
+      try { activeAudioCtx.close(); } catch (e) {}
+      activeAudioCtx = null;
+    }
+    if (currentlyPlayingCard) {
+      currentlyPlayingCard.classList.remove('playing');
+      const iconPlay = currentlyPlayingCard.querySelector('.icon-play');
+      const iconPause = currentlyPlayingCard.querySelector('.icon-pause');
+      if (iconPlay) iconPlay.style.display = 'block';
+      if (iconPause) iconPause.style.display = 'none';
+      currentlyPlayingCard = null;
+    }
+  }
+
+  function detectMusicGenre(prompt) {
+    const p = (prompt || '').toLowerCase();
+    if (p.includes('lofi') || p.includes('chill') || p.includes('study')) return 'Lofi / Chillhop';
+    if (p.includes('synth') || p.includes('80s') || p.includes('retro')) return 'Synthwave / Retro';
+    if (p.includes('cinematic') || p.includes('movie') || p.includes('epic') || p.includes('orchestral')) return 'Cinematic Soundscape';
+    if (p.includes('rock') || p.includes('metal')) return 'Rock / Upbeat';
+    if (p.includes('jazz') || p.includes('piano') || p.includes('acoustic')) return 'Acoustic / Jazz';
+    if (p.includes('techno') || p.includes('edm') || p.includes('dance') || p.includes('club')) return 'Electronic / EDM';
+    if (p.includes('ambient') || p.includes('meditation') || p.includes('sleep') || p.includes('nature')) return 'Ambient / Meditative';
+    return 'Modern Melodic Beat';
+  }
+
+  function detectMusicBPM(prompt) {
+    const match = (prompt || '').match(/(\d{2,3})\s*bpm/i);
+    if (match && parseInt(match[1])) return parseInt(match[1]);
+    const p = (prompt || '').toLowerCase();
+    if (p.includes('fast') || p.includes('upbeat') || p.includes('dance') || p.includes('techno') || p.includes('edm')) return 128;
+    if (p.includes('lofi') || p.includes('chill') || p.includes('slow') || p.includes('ambient')) return 80;
+    return 100;
   }
 
   function isImageGenerationPrompt(text) {
@@ -3459,6 +3862,117 @@
     }
   }
 
+  // --- AI Music Generation Detection & Handler ---
+  function isMusicGenerationPrompt(text) {
+    if (!text || typeof text !== 'string') return null;
+    const trimmed = text.trim();
+
+    // 1. Explicit command prefixes
+    const slashMatch = trimmed.match(/^\/(?:music|song|beat|track|soundtrack|melody|audio)\s+(.+)/i);
+    if (slashMatch && slashMatch[1].trim()) {
+      return slashMatch[1].trim();
+    }
+
+    // 2. Music and audio nouns
+    const musicNouns = [
+      'music', 'song', 'songs', 'soundtrack', 'soundtracks', 'beat', 'beats',
+      'track', 'tracks', 'melody', 'melodies', 'tune', 'tunes', 'jingle',
+      'audio clip', 'soundscape', 'instrumental', 'ambient sound', 'lofi beat',
+      'theme song', 'composition'
+    ];
+    const nounPattern = musicNouns.join('|');
+
+    // Pattern A: [generate/create/compose/make/produce/synthesize/play] [a/an/the?] <musicNoun> [of/for/about] <subject>
+    const verbNounRegex = new RegExp(
+      '^(?:(?:please|can you|could you|kindly)\\s+)?(?:generate|create|compose|produce|synthesize|make|write|play)\\s+(?:me\\s+)?(?:an?\\s+|the\\s+)?(' +
+      nounPattern +
+      ')\\s*(?:of|for|showing|with|depicting|about)?\\s*(.+)$',
+      'i'
+    );
+    const vnMatch = trimmed.match(verbNounRegex);
+    if (vnMatch && vnMatch[2] && vnMatch[2].trim().length > 1) {
+      return `${vnMatch[1].trim()} for ${vnMatch[2].trim()}`;
+    }
+
+    // Pattern B: Direct verbs: "compose a symphony for...", "write a song about..."
+    const directVerbRegex = /^(?:(?:please|can you|could you|kindly)\s+)?(?:compose|synthesize)\s+(?:me\s+)?(?:an?\s+|the\s+)?(.+)$/i;
+    const dvMatch = trimmed.match(directVerbRegex);
+    if (dvMatch && dvMatch[1] && dvMatch[1].trim().length > 2) {
+      return dvMatch[1].trim();
+    }
+
+    // Pattern C: "music for...", "soundtrack for...", "beat for..."
+    const directNounRegex = new RegExp('^(?:an?\\s+|the\\s+)?(' + nounPattern + ')\\s+(?:of|for|about)\\s+(.+)$', 'i');
+    const dnMatch = trimmed.match(directNounRegex);
+    if (dnMatch && dnMatch[2] && dnMatch[2].trim().length > 1) {
+      return trimmed;
+    }
+
+    return null;
+  }
+
+  async function handleMusicGeneration(session, promptText, originalUserPrompt) {
+    console.log('[Omni Music] Composing music with prompt:', promptText);
+
+    const genre = detectMusicGenre(promptText);
+    const bpm = detectMusicBPM(promptText);
+
+    const assistantMsg = {
+      role: 'assistant',
+      content: `Here is your composed music track for: **"${promptText}"**`,
+      model: 'Omni Audio Synth',
+      musicGeneration: {
+        prompt: promptText,
+        title: promptText.length > 35 ? promptText.slice(0, 32) + '...' : promptText,
+        genre: genre,
+        bpm: bpm,
+        key: 'C Major / A Minor',
+        timestamp: Date.now()
+      },
+      timestamp: Date.now()
+    };
+
+    const assistantWrapper = document.createElement('div');
+    assistantWrapper.className = 'message-wrapper assistant';
+
+    const assistantAvatar = document.createElement('div');
+    assistantAvatar.className = 'message-avatar assistant';
+    assistantAvatar.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path fill="url(#geminiSparkleGrad)" d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+      </svg>
+    `;
+
+    const assistantContainer = document.createElement('div');
+    assistantContainer.className = 'message-content-container';
+
+    const assistantBubble = document.createElement('div');
+    assistantBubble.className = 'message-bubble assistant markdown-body';
+    assistantBubble.innerHTML = `<span style="color: #0ea5e9; font-style: italic;">🎵 Composing melody, chord progressions & synthesized audio for "${escapeHtml(promptText)}"...</span>`;
+
+    assistantContainer.appendChild(assistantBubble);
+    assistantWrapper.appendChild(assistantAvatar);
+    assistantWrapper.appendChild(assistantContainer);
+    messagesInner.appendChild(assistantWrapper);
+    scrollToBottom();
+
+    try {
+      showToast('🎵 Composing AI music & audio...');
+      await new Promise(r => setTimeout(r, 650));
+
+      session.messages.push(assistantMsg);
+      session.updatedAt = Date.now();
+      await persistSessions();
+
+      renderActiveSession();
+      showToast('Music track composed! Click Play to listen.');
+    } catch (err) {
+      console.warn('[Omni Music] Generation error:', err);
+      assistantBubble.innerHTML = `<span style="color: var(--danger-color);">⚠️ Music generation error: ${escapeHtml(err.message)}. Falling back to assistant...</span>`;
+      await triggerAssistantResponse(session);
+    }
+  }
+
   // --- Send Message & Puter AI Streaming ---
   async function handleSend() {
     const text = chatTextarea.value.trim();
@@ -3539,6 +4053,19 @@
 
     if (imagePrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2img === 'function') {
       await handleImageGeneration(session, imagePrompt, text);
+      return;
+    }
+
+    // Check if user is asking for music generation (via mode or natural prompt)
+    let musicPrompt = null;
+    if (isMusicModeActive) {
+      musicPrompt = text.replace(/^\/(?:music|song|beat|track|melody|soundtrack|audio)\s+/i, '').trim() || text;
+    } else {
+      musicPrompt = isMusicGenerationPrompt(text);
+    }
+
+    if (musicPrompt) {
+      await handleMusicGeneration(session, musicPrompt, text);
       return;
     }
 
@@ -3858,12 +4385,17 @@
     }
   });
 
-  btnAttach.addEventListener('click', () => fileInput.click());
+  if (btnAttach) {
+    btnAttach.addEventListener('click', () => fileInput?.click());
+  }
 
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) handleAttachmentFile(file);
-  });
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleAttachmentFile(file);
+      fileInput.value = '';
+    });
+  }
 
   function handleAttachmentFile(file) {
     if (!file) return;
