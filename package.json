@@ -1,7 +1,7 @@
 {
   "name": "omni-chat",
   "description": "Universal AI chat interface with 500+ models powered by Puter.js",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "cloudflare": {
     "label": "Omni Chat",
     "products": [
