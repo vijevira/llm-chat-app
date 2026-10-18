@@ -73,6 +73,7 @@
 
   let projects = [];
   let activeProjectId = null;
+  let expandedProjectIds = new Set();
   let editingProjectId = null;
   let editingProjectFiles = [];
   let editingProjectIcon = '⚡';
@@ -1395,12 +1396,14 @@
           if (projects.length > cloudData.length || local.length > 0) {
             writePuterFileAndKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS, projects).catch(e => console.warn(e));
           }
+          ensureProjectExpandedState();
           renderProjectsList();
           updateTopbarProjectPill();
           return;
         } else if (local.length > 0) {
           projects = local.filter(p => p && p.id && !deletedProjectIds.has(p.id));
           await writePuterFileAndKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS, projects);
+          ensureProjectExpandedState();
           renderProjectsList();
           updateTopbarProjectPill();
           return;
@@ -1412,8 +1415,17 @@
     loadProjectsFromLocal();
   }
 
+  function ensureProjectExpandedState() {
+    if (activeProjectId) {
+      expandedProjectIds.add(activeProjectId);
+    } else if (projects.length > 0 && expandedProjectIds.size === 0) {
+      expandedProjectIds.add(projects[0].id);
+    }
+  }
+
   function loadProjectsFromLocal() {
     projects = getLocalProjects().filter(p => p && p.id && !deletedProjectIds.has(p.id));
+    ensureProjectExpandedState();
     renderProjectsList();
     updateTopbarProjectPill();
   }
@@ -1440,16 +1452,18 @@
   function selectProject(projectId) {
     if (activeProjectId === projectId) return;
     activeProjectId = projectId;
+    if (activeProjectId) expandedProjectIds.add(activeProjectId);
     updateTopbarProjectPill();
-    renderProjectsList();
-    renderSessionList();
 
     const projectSessions = sessions.filter(s => s.projectId === activeProjectId);
     if (projectSessions.length > 0) {
       switchSession(projectSessions[0].id);
     } else {
-      createNewSession();
+      createNewSessionForProject(projectId);
     }
+
+    renderProjectsList();
+    renderSessionList();
 
     const proj = getActiveProject();
     if (proj) {
@@ -1461,9 +1475,16 @@
     if (!activeProjectId) return;
     activeProjectId = null;
     updateTopbarProjectPill();
+
+    const generalSessions = sessions.filter(s => !s.projectId);
+    if (generalSessions.length > 0) {
+      switchSession(generalSessions[0].id);
+    } else {
+      createNewSession();
+    }
+
     renderProjectsList();
     renderSessionList();
-    restoreActiveSession();
     showToast('Exited to standard chats');
   }
 
@@ -1480,14 +1501,16 @@
 
   function createNewSessionForProject(projectId) {
     if (!projectId) return;
+    const proj = projects.find(p => p.id === projectId);
+    if (!proj) return;
     activeProjectId = projectId;
-    const proj = getActiveProject();
+    expandedProjectIds.add(projectId);
     const newSession = {
       id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      title: proj ? `${proj.icon || '📁'} New Chat` : 'New Conversation',
+      title: `${proj.icon || '📁'} New Chat`,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      model: (proj && proj.model) ? proj.model : settings.selectedModel,
+      model: proj.model || settings.selectedModel,
       projectId: activeProjectId,
       messages: []
     };
@@ -1499,9 +1522,7 @@
     renderSessionList();
     renderActiveSession();
     chatTextarea.focus();
-    if (proj) {
-      showToast(`Started new chat in "${proj.name}"`);
-    }
+    showToast(`Started new chat in "${proj.name}"`);
   }
 
   function renderProjectsList() {
@@ -1517,24 +1538,34 @@
     }
 
     projects.forEach(p => {
-      const item = document.createElement('div');
-      item.className = 'project-nav-item' + (p.id === activeProjectId ? ' active' : '');
-      item.setAttribute('data-id', p.id);
+      const pSessions = sessions.filter(s => s.projectId === p.id);
+      const isExpanded = expandedProjectIds.has(p.id);
+      const isActiveProject = (p.id === activeProjectId);
 
       const fileCount = (p.files && p.files.length) ? p.files.length : 0;
       const fileBadge = fileCount > 0 ? `<span class="project-nav-badge" title="${fileCount} attached files">${fileCount} 📄</span>` : '';
-      const pChatCount = sessions.filter(s => s.projectId === p.id).length;
-      const chatBadge = pChatCount > 0 ? `<span class="project-nav-badge" title="${pChatCount} conversations in this project">${pChatCount} 💬</span>` : '';
+      const chatBadge = pSessions.length > 0 ? `<span class="project-nav-badge" title="${pSessions.length} conversations in this project">${pSessions.length} 💬</span>` : '';
 
-      item.innerHTML = `
-        <div class="project-nav-main">
-          <span class="project-nav-icon">${escapeHtml(p.icon || '📁')}</span>
-          <span class="project-nav-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+      const group = document.createElement('div');
+      group.className = 'project-group' + (isExpanded ? ' expanded' : '') + (isActiveProject ? ' active' : '');
+      group.setAttribute('data-project-id', p.id);
+
+      const header = document.createElement('div');
+      header.className = 'project-group-header';
+      header.innerHTML = `
+        <button class="project-group-chevron" title="${isExpanded ? 'Collapse project' : 'Expand project'}" aria-label="Toggle project chats">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <div class="project-group-main">
+          <span class="project-group-icon">${escapeHtml(p.icon || '📁')}</span>
+          <span class="project-group-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
           ${chatBadge}
           ${fileBadge}
         </div>
-        <div class="project-nav-actions">
-          <button class="icon-btn-xs btn-add-chat-project" title="New conversation in ${escapeHtml(p.name)}" aria-label="New chat in project">
+        <div class="project-group-actions">
+          <button class="icon-btn-xs btn-add-chat-project" title="New chat in ${escapeHtml(p.name)}" aria-label="New chat in project">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <button class="icon-btn-xs btn-edit-project" title="Edit Project Studio" aria-label="Edit project">
@@ -1543,12 +1574,30 @@
         </div>
       `;
 
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.project-nav-actions')) return;
-        selectProject(p.id);
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('.project-group-actions') || e.target.closest('.icon-btn-xs')) return;
+        if (expandedProjectIds.has(p.id)) {
+          expandedProjectIds.delete(p.id);
+        } else {
+          expandedProjectIds.add(p.id);
+        }
+        renderProjectsList();
       });
 
-      const btnAddChat = item.querySelector('.btn-add-chat-project');
+      const chevronBtn = header.querySelector('.project-group-chevron');
+      if (chevronBtn) {
+        chevronBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (expandedProjectIds.has(p.id)) {
+            expandedProjectIds.delete(p.id);
+          } else {
+            expandedProjectIds.add(p.id);
+          }
+          renderProjectsList();
+        });
+      }
+
+      const btnAddChat = header.querySelector('.btn-add-chat-project');
       if (btnAddChat) {
         btnAddChat.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1556,7 +1605,7 @@
         });
       }
 
-      const btnEdit = item.querySelector('.btn-edit-project');
+      const btnEdit = header.querySelector('.btn-edit-project');
       if (btnEdit) {
         btnEdit.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1564,7 +1613,69 @@
         });
       }
 
-      projectsList.appendChild(item);
+      group.appendChild(header);
+
+      if (isExpanded) {
+        const chatsContainer = document.createElement('div');
+        chatsContainer.className = 'project-group-chats';
+
+        if (pSessions.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'project-empty-hint';
+          empty.textContent = 'No conversations yet';
+          chatsContainer.appendChild(empty);
+        } else {
+          pSessions.forEach(s => {
+            const chatItem = document.createElement('div');
+            chatItem.className = 'project-nested-chat' + (s.id === currentSessionId ? ' active' : '');
+            chatItem.setAttribute('data-id', s.id);
+            chatItem.innerHTML = `
+              <svg class="project-nested-chat-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span class="project-nested-chat-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
+              <div class="project-nested-chat-actions">
+                <button class="icon-btn-xs btn-rename-nested-chat" title="Rename conversation" aria-label="Rename conversation">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                </button>
+                <button class="icon-btn-xs btn-delete-nested-chat" title="Delete conversation" aria-label="Delete conversation">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            `;
+
+            chatItem.addEventListener('click', () => {
+              if (chatItem.classList.contains('editing')) return;
+              switchSession(s.id);
+            });
+
+            const btnDel = chatItem.querySelector('.btn-delete-nested-chat');
+            if (btnDel) {
+              btnDel.addEventListener('click', (e) => deleteSession(s.id, e));
+            }
+
+            const btnRename = chatItem.querySelector('.btn-rename-nested-chat');
+            if (btnRename) {
+              btnRename.addEventListener('click', (e) => {
+                e.stopPropagation();
+                startSidebarInlineRename(chatItem, s);
+              });
+            }
+
+            const titleSpan = chatItem.querySelector('.project-nested-chat-title');
+            if (titleSpan) {
+              titleSpan.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                startSidebarInlineRename(chatItem, s);
+              });
+            }
+
+            chatsContainer.appendChild(chatItem);
+          });
+        }
+
+        group.appendChild(chatsContainer);
+      }
+
+      projectsList.appendChild(group);
     });
   }
 
@@ -2060,35 +2171,50 @@
   }
 
   function createNewSession() {
-    const proj = getActiveProject();
+    activeProjectId = null;
     const newSession = {
       id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      title: proj ? `${proj.icon || '📁'} New Chat` : 'New Conversation',
+      title: 'New Conversation',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      model: (proj && proj.model) ? proj.model : settings.selectedModel,
-      projectId: activeProjectId || null,
+      model: settings.selectedModel,
+      projectId: null,
       messages: []
     };
     sessions.unshift(newSession);
     currentSessionId = newSession.id;
     persistSessions();
+    updateTopbarProjectPill();
+    renderProjectsList();
     renderSessionList();
     renderActiveSession();
     chatTextarea.focus();
   }
 
   function restoreActiveSession() {
-    const filtered = activeProjectId
-      ? sessions.filter(s => s.projectId === activeProjectId)
-      : sessions;
-
-    if (filtered.length > 0) {
-      currentSessionId = filtered[0].id;
+    if (currentSessionId) {
+      const cur = sessions.find(s => s.id === currentSessionId);
+      if (cur) {
+        activeProjectId = cur.projectId || null;
+        if (activeProjectId) expandedProjectIds.add(activeProjectId);
+        updateTopbarProjectPill();
+        renderProjectsList();
+        renderSessionList();
+        renderActiveSession();
+        return;
+      }
+    }
+    if (sessions.length > 0) {
+      currentSessionId = sessions[0].id;
+      activeProjectId = sessions[0].projectId || null;
+      if (activeProjectId) expandedProjectIds.add(activeProjectId);
     } else {
       createNewSession();
       return;
     }
+    updateTopbarProjectPill();
+    renderProjectsList();
+    renderSessionList();
     renderActiveSession();
   }
 
@@ -2101,9 +2227,12 @@
     const session = sessions.find(s => s.id === id);
     if (session) {
       activeProjectId = session.projectId || null;
+      if (activeProjectId) {
+        expandedProjectIds.add(activeProjectId);
+      }
       updateTopbarProjectPill();
-      renderProjectsList();
     }
+    renderProjectsList();
     renderSessionList();
     renderActiveSession();
   }
@@ -2113,11 +2242,38 @@
     deletedSessionIds.add(id);
     sessions = sessions.filter(s => s.id !== id);
     if (currentSessionId === id) {
-      const remaining = activeProjectId ? sessions.filter(s => s.projectId === activeProjectId) : sessions;
-      currentSessionId = remaining.length > 0 ? remaining[0].id : null;
+      if (activeProjectId) {
+        const remainingInProj = sessions.filter(s => s.projectId === activeProjectId);
+        if (remainingInProj.length > 0) {
+          currentSessionId = remainingInProj[0].id;
+        } else {
+          const generalSessions = sessions.filter(s => !s.projectId);
+          if (generalSessions.length > 0) {
+            currentSessionId = generalSessions[0].id;
+            activeProjectId = null;
+          } else if (sessions.length > 0) {
+            currentSessionId = sessions[0].id;
+            activeProjectId = sessions[0].projectId || null;
+          } else {
+            currentSessionId = null;
+          }
+        }
+      } else {
+        const remainingGeneral = sessions.filter(s => !s.projectId);
+        if (remainingGeneral.length > 0) {
+          currentSessionId = remainingGeneral[0].id;
+        } else if (sessions.length > 0) {
+          currentSessionId = sessions[0].id;
+          activeProjectId = sessions[0].projectId || null;
+        } else {
+          currentSessionId = null;
+        }
+      }
     }
     persistSessions();
     syncTombstones();
+    updateTopbarProjectPill();
+    renderProjectsList();
     renderSessionList();
     if (!currentSessionId) {
       createNewSession();
@@ -2156,8 +2312,11 @@
     });
     sessions = [];
     currentSessionId = null;
+    activeProjectId = null;
     persistSessions();
     syncTombstones();
+    updateTopbarProjectPill();
+    renderProjectsList();
     createNewSession();
     closeModal(settingsModal);
     showToast('All conversations cleared');
@@ -2191,6 +2350,7 @@
           sessions = imported;
           currentSessionId = sessions.length > 0 ? sessions[0].id : null;
           await persistSessions();
+          renderProjectsList();
           renderSessionList();
           renderActiveSession();
           showToast(`Imported ${sessions.length} conversations!`);
@@ -2207,72 +2367,24 @@
   });
 
   function renderSessionList() {
-    const proj = getActiveProject();
-    if (proj) {
-      chatHistoryList.innerHTML = `
-        <div class="active-project-banner">
-          <div class="active-project-banner-header">
-            <span>${escapeHtml(proj.icon || '📁')}</span>
-            <span>${escapeHtml(proj.name)}</span>
-          </div>
-          <div class="active-project-banner-actions">
-            <button class="btn-project-chat-action primary" id="btn-project-new-chat" title="Start a new conversation in this project">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>+ New Project Chat</span>
-            </button>
-            <button class="btn-project-chat-action" id="btn-exit-project-sidebar" title="View all standard chats">
-              <span>← All Chats</span>
-            </button>
-          </div>
-        </div>
-        <div class="chat-history-title">${escapeHtml(proj.name)} Conversations</div>
-      `;
+    chatHistoryList.innerHTML = '<div class="chat-history-title">Recent Conversations</div>';
 
-      const btnProjNew = chatHistoryList.querySelector('#btn-project-new-chat');
-      if (btnProjNew) {
-        btnProjNew.addEventListener('click', (e) => {
-          e.stopPropagation();
-          createNewSessionForProject(activeProjectId);
-        });
-      }
-      const btnExitProj = chatHistoryList.querySelector('#btn-exit-project-sidebar');
-      if (btnExitProj) {
-        btnExitProj.addEventListener('click', (e) => {
-          e.stopPropagation();
-          exitProject();
-        });
-      }
-    } else {
-      chatHistoryList.innerHTML = '<div class="chat-history-title">Recent Conversations</div>';
-    }
+    const generalSessions = sessions.filter(s => !s.projectId);
 
-    const filteredSessions = activeProjectId
-      ? sessions.filter(s => s.projectId === activeProjectId)
-      : sessions;
-
-    if (filteredSessions.length === 0) {
+    if (generalSessions.length === 0) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding: 0.75rem 0.5rem; font-size: 0.8rem; color: var(--text-muted);';
-      empty.textContent = activeProjectId ? 'No conversations in this project yet. Click "+ New Project Chat" above to start!' : 'No past conversations';
+      empty.className = 'chat-history-empty';
+      empty.textContent = 'No past conversations';
       chatHistoryList.appendChild(empty);
       return;
     }
 
-    filteredSessions.forEach(s => {
+    generalSessions.forEach(s => {
       const item = document.createElement('div');
       item.className = 'chat-item' + (s.id === currentSessionId ? ' active' : '');
       item.setAttribute('data-id', s.id);
 
-      let projectTag = '';
-      if (!activeProjectId && s.projectId) {
-        const p = projects.find(projItem => projItem.id === s.projectId);
-        if (p) {
-          projectTag = `<span class="chat-item-project-tag" title="Project: ${escapeHtml(p.name)}">${escapeHtml(p.icon || '📁')}</span>`;
-        }
-      }
-
       item.innerHTML = `
-        ${projectTag}
         <span class="chat-item-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
         <div class="chat-item-actions">
           <button class="icon-btn-sm btn-rename-chat" title="Rename conversation" aria-label="Rename conversation">
@@ -2311,11 +2423,11 @@
   }
 
   function startSidebarInlineRename(item, session) {
-    // If another item is currently being edited, reset by re-rendering
-    const alreadyEditing = chatHistoryList.querySelector('.chat-item.editing');
+    const alreadyEditing = document.querySelector('.chat-item.editing, .project-nested-chat.editing');
     if (alreadyEditing && alreadyEditing !== item) {
       renderSessionList();
-      item = chatHistoryList.querySelector(`[data-id="${session.id}"]`);
+      renderProjectsList();
+      item = document.querySelector(`[data-id="${session.id}"]`);
       if (!item) return;
     }
 
@@ -2353,11 +2465,13 @@
         showToast('Conversation renamed');
       }
       renderSessionList();
+      renderProjectsList();
     };
 
     const cancelRename = (e) => {
       if (e) e.stopPropagation();
       renderSessionList();
+      renderProjectsList();
     };
 
     btnConfirm.addEventListener('click', commitRename);
@@ -2409,6 +2523,7 @@
         topbarChatTitle.textContent = session.title;
       }
       renderSessionList();
+      renderProjectsList();
       showToast('Conversation renamed');
     }
     cancelTopbarRename();
@@ -3135,6 +3250,7 @@
         if (topbarChatTitle) topbarChatTitle.textContent = session.title;
       }
       renderSessionList();
+      renderProjectsList();
     }
 
     welcomeContainer.style.display = 'none';
