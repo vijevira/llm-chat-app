@@ -225,6 +225,9 @@ body {
   padding: 0.25rem 0.5rem 0.5rem 0.5rem;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 0.5rem;
+  overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .projects-section-header {
@@ -243,6 +246,9 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .icon-btn-xs {
@@ -270,6 +276,104 @@ body {
   margin-top: 0.2rem;
   max-height: 240px;
   overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Custom App & Sandbox Items in Sidebar (Auto text truncation) */
+.project-item,
+.sidebar-sandbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.42rem 0.6rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+.project-item:hover,
+.sidebar-sandbox-item:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.project-item.active {
+  background-color: var(--accent-light);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.sidebar-sandbox-item.active {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  font-weight: 600;
+}
+
+.project-item-left,
+.sidebar-sandbox-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.project-item-icon,
+.sandbox-item-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.project-item-title,
+.sandbox-item-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.83rem;
+  font-weight: 500;
+  min-width: 0;
+  flex: 1;
+  display: block;
+}
+
+.project-item-edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.65;
+  transition: opacity var(--transition), color var(--transition);
+  flex-shrink: 0;
+  margin-left: 0.35rem;
+}
+
+.project-item:hover .project-item-edit-btn {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.project-item-edit-btn:hover {
+  background-color: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--accent-color);
 }
 
 /* Dedicated Sandbox Apps in Sidebar (Custom Apps style) */
@@ -810,6 +914,8 @@ body {
   transition: var(--transition);
   cursor: pointer;
   max-width: 220px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .topbar-project-pill:hover {
@@ -818,12 +924,15 @@ body {
 
 .project-pill-icon {
   font-size: 0.95rem;
+  flex-shrink: 0;
 }
 
 .project-pill-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 
 .project-pill-btn-edit,

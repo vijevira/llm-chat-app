@@ -561,12 +561,14 @@ export function renderSidebarSandboxAppsList() {
 
   history.forEach(app => {
     const isActive = currentSandboxApp.id === app.id;
+    const titleText = app.title || 'Web Application';
     const item = document.createElement('div');
     item.className = 'sidebar-sandbox-item' + (isActive ? ' active' : '');
+    item.setAttribute('title', titleText);
     item.innerHTML = `
       <div class="sidebar-sandbox-item-row">
         <span class="sandbox-item-icon">⚡</span>
-        <span class="sandbox-item-title">${escapeHtml(app.title || 'Web Application')}</span>
+        <span class="sandbox-item-title" title="${escapeHtml(titleText)}">${escapeHtml(titleText)}</span>
       </div>
     `;
 

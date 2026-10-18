@@ -171,12 +171,13 @@ export function renderProjectsList() {
   appState.projects.forEach(project => {
     const item = document.createElement('div');
     item.className = 'project-item' + (project.id === appState.activeProjectId ? ' active' : '');
+    item.setAttribute('title', project.name);
     item.innerHTML = `
       <div class="project-item-left">
         <span class="project-item-icon">${project.icon || '⚡'}</span>
-        <span class="project-item-title">${escapeHtml(project.name)}</span>
+        <span class="project-item-title" title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</span>
       </div>
-      <button class="project-item-edit-btn" title="Edit App" type="button">
+      <button class="project-item-edit-btn" title="Edit App Settings" type="button" aria-label="Edit app">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
     `;
