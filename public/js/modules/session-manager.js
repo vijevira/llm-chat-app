@@ -8,13 +8,14 @@ import { appState, saveTombstones } from '../state/app-state.js';
 import { STORAGE_KEY_SESSIONS } from '../config/constants.js';
 import { escapeHtml, showToast, formatDate } from '../utils/helpers.js';
 import { formatMarkdown } from '../utils/markdown.js';
-import { renderActiveProjectPill } from './project-studio.js';
+import { renderActiveProjectPill, closeProjectStudio, renderProjectsList } from './project-studio.js';
 import { closeSandboxStudio } from './sandbox-studio.js';
 
 export function initSessionManager() {
   const btnNewChat = document.getElementById('btn-new-chat');
   if (btnNewChat) btnNewChat.addEventListener('click', () => createNewSession());
 
+  initTopbarRename();
   loadSessionsFromStorage();
 }
 
@@ -44,7 +45,12 @@ export function persistSessions() {
 }
 
 export function createNewSession(projectId = null) {
+  if (appState.activeAbortController) {
+    appState.activeAbortController.abort();
+    appState.activeAbortController = null;
+  }
   closeSandboxStudio();
+  closeProjectStudio();
   appState.activeProjectId = projectId;
 
   const newSession = {
@@ -62,6 +68,7 @@ export function createNewSession(projectId = null) {
 
   persistSessions();
   renderActiveProjectPill();
+  renderProjectsList();
   renderSessionList();
   renderActiveSession();
 
@@ -77,14 +84,18 @@ export function switchSession(id) {
     appState.activeAbortController = null;
   }
   closeSandboxStudio();
+  closeProjectStudio();
 
   appState.currentSessionId = id;
   const session = appState.sessions.find(s => s.id === id);
   if (session) {
     appState.activeProjectId = session.projectId || null;
-    renderActiveProjectPill();
+  } else {
+    appState.activeProjectId = null;
   }
 
+  renderActiveProjectPill();
+  renderProjectsList();
   renderSessionList();
   renderActiveSession();
   closeSidebarIfMobile();
@@ -144,9 +155,7 @@ export function renderSessionList() {
   if (!container) return;
   container.innerHTML = '';
 
-  const generalSessions = appState.sessions.filter(s => !s.projectId);
-
-  if (generalSessions.length === 0) {
+  if (appState.sessions.length === 0) {
     container.innerHTML = `
       <div style="padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
         No conversations yet. Start a new chat!
@@ -155,15 +164,20 @@ export function renderSessionList() {
     return;
   }
 
-  generalSessions.forEach(session => {
+  appState.sessions.forEach(session => {
     const item = document.createElement('div');
     const isActive = session.id === appState.currentSessionId;
     item.className = 'chat-item' + (isActive ? ' active' : '');
     item.setAttribute('data-id', session.id);
 
+    const proj = session.projectId ? appState.projects.find(p => p.id === session.projectId) : null;
+    const iconHtml = proj
+      ? `<span class="chat-item-proj-icon" title="Custom App: ${escapeHtml(proj.name)}">${proj.icon || '⚡'}</span>`
+      : `<svg class="chat-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+
     item.innerHTML = `
       <div class="chat-item-main">
-        <svg class="chat-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        ${iconHtml}
         <span class="chat-item-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</span>
       </div>
       <div class="chat-item-actions">
@@ -236,11 +250,14 @@ export function renderActiveSession() {
   const session = appState.sessions.find(s => s.id === appState.currentSessionId);
   const welcomeView = document.getElementById('welcome-container');
   const messagesInner = document.getElementById('messages-inner');
+  const topbarChatTitle = document.getElementById('topbar-chat-title');
   const topbarTitle = document.getElementById('topbar-title-display');
 
   if (!session) return;
 
-  if (topbarTitle) {
+  if (topbarChatTitle) {
+    topbarChatTitle.textContent = session.title || 'Omni Chat';
+  } else if (topbarTitle) {
     topbarTitle.textContent = session.title || 'Omni Chat';
   }
 
@@ -288,5 +305,57 @@ function closeSidebarIfMobile() {
   if (sidebar && window.innerWidth <= 768) {
     sidebar.classList.remove('mobile-open');
   }
+}
+
+function initTopbarRename() {
+  const btnRename = document.getElementById('btn-rename-topbar');
+  const titleDisplay = document.getElementById('topbar-title-display');
+  const renameForm = document.getElementById('topbar-rename-form');
+  const renameInput = document.getElementById('topbar-rename-input');
+  const btnSave = document.getElementById('btn-save-topbar-rename');
+  const btnCancel = document.getElementById('btn-cancel-topbar-rename');
+
+  if (!btnRename || !titleDisplay || !renameForm || !renameInput) return;
+
+  const showForm = () => {
+    const curSession = appState.sessions.find(s => s.id === appState.currentSessionId);
+    if (!curSession) return;
+    renameInput.value = curSession.title || '';
+    titleDisplay.style.display = 'none';
+    renameForm.style.display = 'flex';
+    renameInput.focus();
+    renameInput.select();
+  };
+
+  const hideForm = () => {
+    renameForm.style.display = 'none';
+    titleDisplay.style.display = 'flex';
+  };
+
+  const saveRename = () => {
+    const curSession = appState.sessions.find(s => s.id === appState.currentSessionId);
+    if (!curSession) {
+      hideForm();
+      return;
+    }
+    const val = renameInput.value.trim();
+    if (val && val !== curSession.title) {
+      curSession.title = val;
+      curSession.updatedAt = Date.now();
+      persistSessions();
+      showToast(`Renamed to "${val}"`);
+    }
+    hideForm();
+    renderSessionList();
+    renderActiveSession();
+  };
+
+  btnRename.addEventListener('click', showForm);
+  if (btnSave) btnSave.addEventListener('click', saveRename);
+  if (btnCancel) btnCancel.addEventListener('click', hideForm);
+  renameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveRename();
+    else if (e.key === 'Escape') hideForm();
+  });
 }
 

@@ -68,8 +68,46 @@ export function initSandboxStudio() {
   }
 
   if (btnSandboxPublish) btnSandboxPublish.addEventListener('click', publishSandboxApp);
-  if (btnSandboxGenerate) btnSandboxGenerate.addEventListener('click', handleSandboxInitialGenerate);
+  if (btnSandboxGenerate) btnSandboxGenerate.addEventListener('click', () => handleSandboxInitialGenerate());
   if (btnSandboxIterationSubmit) btnSandboxIterationSubmit.addEventListener('click', handleSandboxIterate);
+
+  // Suggestion prompt chips in initial state (Breakout Arcade, Pomodoro Timer, etc.)
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('.sandbox-prompt-chip');
+    if (!chip) return;
+    const prompt = chip.getAttribute('data-prompt');
+    const chipLabel = chip.textContent.trim().replace(/^[\p{Emoji}\s]+/u, '').trim() || chip.textContent.trim();
+    if (prompt) {
+      const initialPrompt = document.getElementById('sandbox-initial-prompt');
+      if (initialPrompt) initialPrompt.value = prompt;
+      handleSandboxInitialGenerate(prompt, chipLabel);
+    }
+  });
+
+  const sandboxInitialPrompt = document.getElementById('sandbox-initial-prompt');
+  if (sandboxInitialPrompt) {
+    sandboxInitialPrompt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSandboxInitialGenerate();
+      }
+    });
+  }
+
+  const sandboxIterationInput = document.getElementById('sandbox-iteration-input');
+  if (sandboxIterationInput) {
+    sandboxIterationInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSandboxIterate();
+      }
+    });
+  }
+
+  const btnInitialViewAllHistory = document.getElementById('btn-initial-view-all-history');
+  if (btnInitialViewAllHistory) {
+    btnInitialViewAllHistory.addEventListener('click', toggleSandboxHistoryDrawer);
+  }
 
   if (tabBtnSandboxChat) tabBtnSandboxChat.addEventListener('click', () => switchSandboxSubTab('chat'));
   if (tabBtnSandboxCode) tabBtnSandboxCode.addEventListener('click', () => switchSandboxSubTab('code'));
@@ -258,6 +296,7 @@ export function resetSandboxStudio() {
   if (initialPrompt) initialPrompt.value = '';
 
   renderSidebarSandboxAppsList();
+  renderSandboxRecentBuilds();
   switchSandboxSubTab('chat');
 }
 
@@ -414,16 +453,18 @@ function syncEditorScroll() {
   }
 }
 
-export async function handleSandboxInitialGenerate() {
+export async function handleSandboxInitialGenerate(overridePrompt = null, customTitle = null) {
   const promptInput = document.getElementById('sandbox-initial-prompt');
-  const prompt = promptInput ? promptInput.value.trim() : '';
+  const prompt = (typeof overridePrompt === 'string' && overridePrompt.trim())
+    ? overridePrompt.trim()
+    : (promptInput ? promptInput.value.trim() : '');
   if (!prompt) {
     showToast('Please describe the application you want to build.');
     return;
   }
 
   showToast('Generating application codebase...');
-  await executeSandboxAiGeneration(prompt, true);
+  await executeSandboxAiGeneration(prompt, true, customTitle);
 }
 
 export async function handleSandboxIterate() {
@@ -435,7 +476,7 @@ export async function handleSandboxIterate() {
   await executeSandboxAiGeneration(prompt, false);
 }
 
-async function executeSandboxAiGeneration(prompt, isInitial = false) {
+async function executeSandboxAiGeneration(prompt, isInitial = false, customTitle = null) {
   if (typeof puter === 'undefined' || !puter.ai || !puter.ai.chat) {
     showToast('Puter AI not ready. Please check connection.');
     return;
@@ -467,7 +508,15 @@ Requirements:
     const generatedCode = match ? match[1].trim() : raw.trim();
 
     if (generatedCode) {
-      const appTitle = prompt.length > 32 ? prompt.slice(0, 32) + '...' : prompt;
+      let appTitle = customTitle || prompt;
+      if (!customTitle && appTitle.length > 32) {
+        const m = prompt.match(/^Build\s+(?:an?\s+)?(?:sleek\s+|modern\s+|complete\s+|interactive\s+|retro\s+|SaaS\s+)?([^,]+?)(?:\s+with|\s+and|$)/i);
+        if (m && m[1] && m[1].trim().length <= 32) {
+          appTitle = m[1].trim();
+        } else {
+          appTitle = prompt.slice(0, 30) + '...';
+        }
+      }
       if (isInitial) {
         currentSandboxApp.id = 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
         expandedSandboxIds.add(currentSandboxApp.id);
@@ -547,7 +596,10 @@ export function renderSidebarSandboxAppsList() {
   if (!container) return;
 
   const history = getSandboxHistory();
-  if (countBadge) countBadge.textContent = history.length;
+  if (countBadge) {
+    countBadge.textContent = history.length;
+    countBadge.style.display = history.length > 0 ? 'inline-block' : 'none';
+  }
 
   container.innerHTML = '';
   if (history.length === 0) {
@@ -626,6 +678,35 @@ function renderSandboxHistoryList(filterText = '') {
       closeSandboxHistoryDrawer();
     });
     list.appendChild(card);
+  });
+}
+
+export function renderSandboxRecentBuilds() {
+  const section = document.getElementById('sandbox-recent-builds-section');
+  const grid = document.getElementById('sandbox-recent-builds-grid');
+  if (!section || !grid) return;
+
+  const history = getSandboxHistory();
+  if (history.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'flex';
+  grid.innerHTML = '';
+  const recent = history.slice(0, 4);
+
+  recent.forEach(item => {
+    const chip = document.createElement('div');
+    chip.className = 'recent-build-chip';
+    chip.innerHTML = `
+      <div class="recent-build-chip-title">⚡ ${escapeHtml(item.title || 'Web App')}</div>
+      <div class="recent-build-chip-time">${(item.code || '').split('\n').length} lines • ${(item.turns || []).length} revisions</div>
+    `;
+    chip.addEventListener('click', () => {
+      openSandboxStudio(item);
+    });
+    grid.appendChild(chip);
   });
 }
 

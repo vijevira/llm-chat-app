@@ -616,6 +616,24 @@ body {
   font-weight: 600;
 }
 
+.chat-item-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chat-item-proj-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .chat-item-title {
   white-space: nowrap;
   overflow: hidden;

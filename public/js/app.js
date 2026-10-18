@@ -15,7 +15,7 @@ import { initArtifactsPane, closeArtifact } from './modules/artifacts-pane.js';
 import { initProjectStudio } from './modules/project-studio.js';
 import { initSandboxStudio, closeSandboxExportModal } from './modules/sandbox-studio.js';
 import { initExploreAppsModal } from './modules/explore-apps.js';
-import { initSessionManager, renderSessionList, renderActiveSession } from './modules/session-manager.js';
+import { initSessionManager, renderSessionList, renderActiveSession, createNewSession } from './modules/session-manager.js';
 import { initChatController } from './modules/chat-controller.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -72,24 +72,73 @@ function setTheme(theme) {
 function initSidebar() {
   const sidebar = document.getElementById('sidebar');
   const btnToggle = document.getElementById('btn-toggle-sidebar');
-  const btnCollapse = document.getElementById('btn-sidebar-collapse');
   const btnClose = document.getElementById('btn-close-sidebar');
   const backdrop = document.getElementById('sidebar-backdrop');
+  const brandLink = document.getElementById('brand-link');
 
-  const toggle = () => {
+  const closeSidebar = () => {
     if (!sidebar) return;
     if (window.innerWidth <= 768) {
-      sidebar.classList.toggle('mobile-open');
+      sidebar.classList.remove('mobile-open');
     } else {
-      sidebar.classList.toggle('closed');
-      document.body.classList.toggle('sidebar-closed', sidebar.classList.contains('closed'));
+      sidebar.classList.add('closed');
+      document.body.classList.add('sidebar-closed');
+      try {
+        localStorage.setItem('omni_sidebar_closed', 'true');
+      } catch (e) {
+        // ignore
+      }
     }
   };
 
-  if (btnToggle) btnToggle.addEventListener('click', toggle);
-  if (btnCollapse) btnCollapse.addEventListener('click', toggle);
-  if (btnClose) btnClose.addEventListener('click', () => sidebar?.classList.remove('mobile-open'));
+  const openSidebar = () => {
+    if (!sidebar) return;
+    if (window.innerWidth <= 768) {
+      sidebar.classList.add('mobile-open');
+    } else {
+      sidebar.classList.remove('closed');
+      document.body.classList.remove('sidebar-closed');
+      try {
+        localStorage.setItem('omni_sidebar_closed', 'false');
+      } catch (e) {
+        // ignore
+      }
+    }
+  };
+
+  const toggleSidebar = () => {
+    if (!sidebar) return;
+    if (window.innerWidth <= 768) {
+      const isOpen = sidebar.classList.contains('mobile-open');
+      if (isOpen) closeSidebar();
+      else openSidebar();
+    } else {
+      const isClosed = sidebar.classList.contains('closed');
+      if (isClosed) openSidebar();
+      else closeSidebar();
+    }
+  };
+
+  if (btnToggle) btnToggle.addEventListener('click', toggleSidebar);
+  if (btnClose) btnClose.addEventListener('click', closeSidebar);
   if (backdrop) backdrop.addEventListener('click', () => sidebar?.classList.remove('mobile-open'));
+
+  if (brandLink) {
+    brandLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      createNewSession();
+    });
+  }
+
+  // Restore desktop preference
+  try {
+    if (window.innerWidth > 768 && localStorage.getItem('omni_sidebar_closed') === 'true') {
+      sidebar?.classList.add('closed');
+      document.body.classList.add('sidebar-closed');
+    }
+  } catch (e) {
+    // ignore
+  }
 }
 
 function initModelPicker() {

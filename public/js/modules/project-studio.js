@@ -8,6 +8,8 @@ import { appState } from '../state/app-state.js';
 import { CURATED_MODELS } from '../config/models.js';
 import { STORAGE_KEY_PROJECTS } from '../config/constants.js';
 import { escapeHtml, showToast } from '../utils/helpers.js';
+import { closeSandboxStudio } from './sandbox-studio.js';
+import { switchSession, createNewSession } from './session-manager.js';
 
 export function initProjectStudio() {
   const btnCreateProject = document.getElementById('btn-create-project');
@@ -152,6 +154,7 @@ export function closeProjectStudio() {
   if (btnScrollBottom) btnScrollBottom.style.display = '';
 
   renderActiveProjectPill();
+  renderProjectsList();
 }
 
 export function renderProjectsList() {
@@ -196,6 +199,8 @@ export function renderProjectsList() {
 }
 
 export function selectProject(projectId) {
+  closeProjectStudio();
+  closeSandboxStudio();
   appState.activeProjectId = projectId;
   renderProjectsList();
   renderActiveProjectPill();
@@ -203,12 +208,28 @@ export function selectProject(projectId) {
   if (proj) {
     showToast(`Switched to app: ${proj.name}`);
   }
+
+  const existing = appState.sessions.find(s => s.projectId === projectId);
+  if (existing) {
+    switchSession(existing.id);
+  } else {
+    createNewSession(projectId);
+  }
 }
 
 export function exitProject() {
+  closeProjectStudio();
+  closeSandboxStudio();
   appState.activeProjectId = null;
   renderProjectsList();
   renderActiveProjectPill();
+
+  const general = appState.sessions.find(s => !s.projectId);
+  if (general) {
+    switchSession(general.id);
+  } else {
+    createNewSession(null);
+  }
   showToast('Exited custom app mode');
 }
 
