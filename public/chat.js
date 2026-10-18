@@ -1,5 +1,5 @@
 /**
- * Nexus AI — Universal Multi-Model Chat
+ * Omni Chat — Universal Multi-Model Chat
  * Built with Puter.js (docs.puter.com/llms.txt)
  */
 
@@ -8,19 +8,19 @@
 
   // --- Constants & Presets ---
   const DEFAULT_MODEL = 'gpt-4o-mini';
-  const STORAGE_KEY_SESSIONS = 'nexus_ai_chat_sessions';
-  const STORAGE_KEY_SETTINGS = 'nexus_ai_settings';
-  const STORAGE_KEY_THEME = 'nexus_ai_theme';
-  const STORAGE_KEY_PROJECTS = 'nexus_ai_projects';
-  const STORAGE_KEY_DELETED_SESSIONS = 'nexus_ai_deleted_sessions';
-  const STORAGE_KEY_DELETED_PROJECTS = 'nexus_ai_deleted_projects';
-  const PUTER_FS_SESSIONS_PATH = 'nexus_chat_sessions.json';
-  const PUTER_FS_PROJECTS_PATH = 'nexus_chat_projects.json';
-  const PUTER_FS_DELETED_SESSIONS_PATH = 'nexus_deleted_sessions.json';
-  const PUTER_FS_DELETED_PROJECTS_PATH = 'nexus_deleted_projects.json';
+  const STORAGE_KEY_SESSIONS = 'omni_chat_sessions';
+  const STORAGE_KEY_SETTINGS = 'omni_chat_settings';
+  const STORAGE_KEY_THEME = 'omni_chat_theme';
+  const STORAGE_KEY_PROJECTS = 'omni_chat_projects';
+  const STORAGE_KEY_DELETED_SESSIONS = 'omni_chat_deleted_sessions';
+  const STORAGE_KEY_DELETED_PROJECTS = 'omni_chat_deleted_projects';
+  const PUTER_FS_SESSIONS_PATH = 'omni_chat_sessions.json';
+  const PUTER_FS_PROJECTS_PATH = 'omni_chat_projects.json';
+  const PUTER_FS_DELETED_SESSIONS_PATH = 'omni_deleted_sessions.json';
+  const PUTER_FS_DELETED_PROJECTS_PATH = 'omni_deleted_projects.json';
 
   const PERSONA_PRESETS = {
-    default: 'You are Nexus AI, a brilliant, friendly, and concise assistant. Format responses using clean markdown, bullet points, and code blocks where helpful.',
+    default: 'You are Omni Chat, a brilliant, friendly, and concise assistant. Format responses using clean markdown, bullet points, and code blocks where helpful.',
     coder: 'You are a Principal Software Architect. Provide production-ready, clean, modern code with concise technical explanations. Minimize conversational fluff.',
     researcher: 'You are an Academic AI Researcher. Provide rigorous, in-depth analytical responses with step-by-step reasoning and objective conclusions.',
     concise: 'Provide ultra-concise, direct responses using short bullet points. Skip pleasantries and filler.',
@@ -335,7 +335,7 @@
 
   function loadLocalSettings() {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
+      const saved = localStorage.getItem(STORAGE_KEY_SETTINGS) || localStorage.getItem('nexus_ai_settings');
       if (saved) {
         settings = { ...settings, ...JSON.parse(saved) };
       }
@@ -360,7 +360,10 @@
   async function loadCloudSettings() {
     if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn()) {
       try {
-        const cloudSettings = await puter.kv.get(STORAGE_KEY_SETTINGS);
+        let cloudSettings = await puter.kv.get(STORAGE_KEY_SETTINGS);
+        if (!cloudSettings) {
+          cloudSettings = await puter.kv.get('nexus_ai_settings');
+        }
         if (cloudSettings) {
           const parsed = typeof cloudSettings === 'string' ? JSON.parse(cloudSettings) : cloudSettings;
           settings = { ...settings, ...parsed };
@@ -413,6 +416,7 @@
     }
 
     await persistSettings();
+    await writeSharedCrossDeviceState(false);
     updateAuthUI();
     renderActiveSession();
     showToast('Profile and settings saved successfully');
@@ -464,11 +468,11 @@
   // --- Cloud Storage I/O & Dual-Tier Helpers (Puter.fs + Puter.kv) ---
   function loadLocalTombstones() {
     try {
-      const s = localStorage.getItem(STORAGE_KEY_DELETED_SESSIONS);
+      const s = localStorage.getItem(STORAGE_KEY_DELETED_SESSIONS) || localStorage.getItem('nexus_ai_deleted_sessions');
       if (s) deletedSessionIds = new Set(JSON.parse(s));
     } catch (e) {}
     try {
-      const p = localStorage.getItem(STORAGE_KEY_DELETED_PROJECTS);
+      const p = localStorage.getItem(STORAGE_KEY_DELETED_PROJECTS) || localStorage.getItem('nexus_ai_deleted_projects');
       if (p) deletedProjectIds = new Set(JSON.parse(p));
     } catch (e) {}
   }
@@ -485,11 +489,17 @@
     const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
     if (isSignedIn && settings.storageMode !== 'local') {
       try {
-        const remoteDelSessions = await readPuterFileOrKV(PUTER_FS_DELETED_SESSIONS_PATH, STORAGE_KEY_DELETED_SESSIONS);
+        let remoteDelSessions = await readPuterFileOrKV(PUTER_FS_DELETED_SESSIONS_PATH, STORAGE_KEY_DELETED_SESSIONS);
+        if (!remoteDelSessions) {
+          remoteDelSessions = await readPuterFileOrKV('nexus_deleted_sessions.json', 'nexus_ai_deleted_sessions');
+        }
         if (Array.isArray(remoteDelSessions)) {
           remoteDelSessions.forEach(id => deletedSessionIds.add(id));
         }
-        const remoteDelProjects = await readPuterFileOrKV(PUTER_FS_DELETED_PROJECTS_PATH, STORAGE_KEY_DELETED_PROJECTS);
+        let remoteDelProjects = await readPuterFileOrKV(PUTER_FS_DELETED_PROJECTS_PATH, STORAGE_KEY_DELETED_PROJECTS);
+        if (!remoteDelProjects) {
+          remoteDelProjects = await readPuterFileOrKV('nexus_deleted_projects.json', 'nexus_ai_deleted_projects');
+        }
         if (Array.isArray(remoteDelProjects)) {
           remoteDelProjects.forEach(id => deletedProjectIds.add(id));
         }
@@ -505,27 +515,26 @@
         await writePuterFileAndKV(PUTER_FS_DELETED_SESSIONS_PATH, STORAGE_KEY_DELETED_SESSIONS, Array.from(deletedSessionIds));
         await writePuterFileAndKV(PUTER_FS_DELETED_PROJECTS_PATH, STORAGE_KEY_DELETED_PROJECTS, Array.from(deletedProjectIds));
       } catch (e) {
-        console.warn('[Nexus Sync] Tombstone sync warning:', e);
+        console.warn('[Omni Sync] Tombstone sync warning:', e);
       }
     }
   }
 
   // --- Shared Documents Cross-Device Synchronization ---
   let sharedDocumentsDirPath = null;
-
   function updateCrossSyncUIState(isConnected) {
     const btnCrossSync = document.getElementById('btn-enable-cross-sync');
     if (btnCrossSync) {
       if (isConnected) {
         btnCrossSync.innerHTML = '<span>✓ Cross-Device Sync Connected</span>';
         btnCrossSync.className = 'btn-secondary btn-cross-sync-connected';
-        btnCrossSync.title = 'Cross-device storage is connected via Puter Documents. All chats, projects, and username sync between localhost and server.';
+        btnCrossSync.title = 'Cross-device storage is connected via Puter Documents. All chats, projects, and username sync across devices.';
         btnCrossSync.style.color = 'var(--success-color, #10b981)';
         btnCrossSync.style.borderColor = 'var(--success-color, #10b981)';
       } else {
         btnCrossSync.innerHTML = '<span>🌐 Connect Cross-Device Storage</span>';
         btnCrossSync.className = 'btn-secondary';
-        btnCrossSync.title = 'Share chats between localhost and server deployments via Puter Documents folder';
+        btnCrossSync.title = 'Share chats between devices via Puter Documents folder';
         btnCrossSync.style.color = '';
         btnCrossSync.style.borderColor = '';
       }
@@ -542,21 +551,23 @@
     try {
       const hasPerm = await puter.perms.check('folder', { name: 'Documents', access: 'write' });
       if (hasPerm) {
-        const path = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
+        const res = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
+        const path = typeof res === 'string' ? res : (res && (res.path || res.name) ? (res.path || res.name) : 'Documents');
         sharedDocumentsDirPath = path || 'Documents';
         updateCrossSyncUIState(true);
         return sharedDocumentsDirPath;
       }
       if (promptIfMissing) {
-        const path = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
-        if (path) {
-          sharedDocumentsDirPath = path;
+        const res = await puter.perms.request('folder', { name: 'Documents', access: 'write' });
+        if (res) {
+          const path = typeof res === 'string' ? res : (res && (res.path || res.name) ? (res.path || res.name) : 'Documents');
+          sharedDocumentsDirPath = path || 'Documents';
           updateCrossSyncUIState(true);
-          return path;
+          return sharedDocumentsDirPath;
         }
       }
     } catch (e) {
-      console.warn('[Nexus Sync] Shared folder perm error:', e);
+      console.warn('[Omni Sync] Shared folder perm error:', e);
     }
     updateCrossSyncUIState(false);
     return null;
@@ -567,6 +578,8 @@
     if (!docDir || typeof puter === 'undefined' || !puter.fs) return null;
 
     const candidatePaths = [
+      `${docDir}/OmniChat/omni_sync_state.json`,
+      `${docDir}/omni_sync_state.json`,
       `${docDir}/NexusAI/nexus_sync_state.json`,
       `${docDir}/nexus_sync_state.json`
     ];
@@ -610,16 +623,16 @@
 
     try {
       if (typeof puter.fs.mkdir === 'function') {
-        try { await puter.fs.mkdir(`${docDir}/NexusAI`); } catch (err) {}
+        try { await puter.fs.mkdir(`${docDir}/OmniChat`); } catch (err) {}
       }
-      await puter.fs.write(`${docDir}/NexusAI/nexus_sync_state.json`, jsonStr);
+      await puter.fs.write(`${docDir}/OmniChat/omni_sync_state.json`, jsonStr);
       return true;
     } catch (err) {
       try {
-        await puter.fs.write(`${docDir}/nexus_sync_state.json`, jsonStr);
+        await puter.fs.write(`${docDir}/omni_sync_state.json`, jsonStr);
         return true;
       } catch (e2) {
-        console.warn('[Nexus Sync] Failed to write shared cross-device state:', e2);
+        console.warn('[Omni Sync] Failed to write shared cross-device state:', e2);
         return false;
       }
     }
@@ -633,10 +646,10 @@
 
     if (sharedData) {
       if (sharedData.settings) {
-        if (!settings.displayName && sharedData.settings.displayName) {
+        if (sharedData.settings.displayName) {
           settings.displayName = sharedData.settings.displayName;
         }
-        if (!settings.customUsername && sharedData.settings.customUsername) {
+        if (sharedData.settings.customUsername) {
           settings.customUsername = sharedData.settings.customUsername;
         }
         if (sharedData.settings.selectedModel) {
@@ -704,7 +717,7 @@
           return typeof kvData === 'string' ? JSON.parse(kvData) : kvData;
         }
       } catch (kvErr) {
-        console.warn(`[Nexus Sync] puter.kv.get(${kvKey}) error:`, kvErr?.message || kvErr);
+        console.warn(`[Omni Sync] puter.kv.get(${kvKey}) error:`, kvErr?.message || kvErr);
       }
     }
 
@@ -720,7 +733,7 @@
         await puter.fs.write(filePath, jsonStr);
         fsSuccess = true;
       } catch (fsErr) {
-        console.warn(`[Nexus Sync] puter.fs.write(${filePath}) error:`, fsErr);
+        console.warn(`[Omni Sync] puter.fs.write(${filePath}) error:`, fsErr);
       }
     }
 
@@ -729,10 +742,10 @@
         try {
           await puter.kv.set(kvKey, data);
         } catch (kvErr) {
-          console.warn(`[Nexus Sync] puter.kv.set(${kvKey}) error:`, kvErr);
+          console.warn(`[Omni Sync] puter.kv.set(${kvKey}) error:`, kvErr);
         }
       } else {
-        console.log(`[Nexus Sync] Payload (${jsonStr.length} bytes) exceeds Puter KV limit. Stored safely via puter.fs.`);
+        console.log(`[Omni Sync] Payload (${jsonStr.length} bytes) exceeds Puter KV limit. Stored safely via puter.fs.`);
       }
     }
 
@@ -850,7 +863,7 @@
   async function initPuter() {
     const isReady = await waitForPuter();
     if (!isReady) {
-      console.warn('[Nexus Puter] Puter.js SDK not available after wait.');
+      console.warn('[Omni Puter] Puter.js SDK not available after wait.');
       updateAuthUI();
       return;
     }
@@ -868,7 +881,7 @@
       await loadSessions();
       updateSyncStatusUI('Synced (Puter Cloud)', true);
     } catch (err) {
-      console.error('[Nexus Puter] Puter init error:', err);
+      console.error('[Omni Puter] Puter init error:', err);
       updateSyncStatusUI('Sync error (using local cache)', false);
     }
   }
@@ -899,7 +912,7 @@
 
         if (linkManagePuter) linkManagePuter.style.display = 'inline-flex';
       } catch (e) {
-        console.warn('[Nexus Auth] Failed to get user:', e);
+        console.warn('[Omni Auth] Failed to get user:', e);
       }
     } else {
       puterUser = null;
@@ -948,7 +961,11 @@
 
     try {
       if (showFeedback) showToast('Syncing chats with Puter Cloud...');
-      await syncAllSharedCrossDevice(false);
+      if (!sharedDocumentsDirPath && showFeedback) {
+        await syncAllSharedCrossDevice(true);
+      } else {
+        await syncAllSharedCrossDevice(false);
+      }
       await loadCloudSettings();
       await syncTombstones();
       await loadProjects();
@@ -962,7 +979,7 @@
         showToast(`Cloud Sync Complete: ${sessions.length} chats & ${projects.length} projects synced!`);
       }
     } catch (err) {
-      console.error('[Nexus Sync] Manual sync failed:', err);
+      console.error('[Omni Sync] Manual sync failed:', err);
       updateSyncStatusUI('Sync error', false);
       if (showFeedback) showToast('Sync failed: ' + (err.message || 'Network error'));
     } finally {
@@ -1014,7 +1031,7 @@
     if (Date.now() - lastBackgroundSyncTime < 15000) return; // At most once every 15s
     if (typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn() && settings.storageMode !== 'local') {
       lastBackgroundSyncTime = Date.now();
-      console.log('[Nexus Sync] Window active: checking for updates from other devices...');
+      console.log('[Omni Sync] Window active: checking for updates from other devices...');
       manualSyncAll(false);
     }
   }
@@ -1355,7 +1372,7 @@
   // --- Custom Projects (Workspaces) Management ---
   function getLocalProjects() {
     try {
-      const local = localStorage.getItem(STORAGE_KEY_PROJECTS);
+      const local = localStorage.getItem(STORAGE_KEY_PROJECTS) || localStorage.getItem('nexus_ai_projects');
       return local ? JSON.parse(local) : [];
     } catch (e) {
       return [];
@@ -1366,7 +1383,10 @@
     const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
     if (isSignedIn && settings.storageMode !== 'local') {
       try {
-        const cloudData = await readPuterFileOrKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS);
+        let cloudData = await readPuterFileOrKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS);
+        if (!cloudData) {
+          cloudData = await readPuterFileOrKV('nexus_chat_projects.json', 'nexus_ai_projects');
+        }
         const local = getLocalProjects();
 
         if (cloudData && Array.isArray(cloudData)) {
@@ -1386,7 +1406,7 @@
           return;
         }
       } catch (err) {
-        console.warn('[Nexus Sync] Failed to load projects from Puter Cloud:', err);
+        console.warn('[Omni Sync] Failed to load projects from Puter Cloud:', err);
       }
     }
     loadProjectsFromLocal();
@@ -1406,7 +1426,7 @@
         await writePuterFileAndKV(PUTER_FS_PROJECTS_PATH, STORAGE_KEY_PROJECTS, projects);
       }
     } catch (e) {
-      console.warn('[Nexus Sync] Failed to persist projects:', e);
+      console.warn('[Omni Sync] Failed to persist projects:', e);
     }
     renderProjectsList();
     updateTopbarProjectPill();
@@ -1960,7 +1980,7 @@
   // --- Session & History Management ---
   function getLocalSessions() {
     try {
-      const local = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      const local = localStorage.getItem(STORAGE_KEY_SESSIONS) || localStorage.getItem('nexus_ai_chat_sessions');
       return local ? JSON.parse(local) : [];
     } catch (e) {
       return [];
@@ -1973,12 +1993,15 @@
 
     if (canUseCloud) {
       try {
-        console.log('[Nexus Sync] Fetching chat sessions from Puter Cloud...');
-        const cloudData = await readPuterFileOrKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS);
+        console.log('[Omni Sync] Fetching chat sessions from Puter Cloud...');
+        let cloudData = await readPuterFileOrKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS);
+        if (!cloudData) {
+          cloudData = await readPuterFileOrKV('nexus_chat_sessions.json', 'nexus_ai_chat_sessions');
+        }
         const local = getLocalSessions();
 
         if (cloudData && Array.isArray(cloudData)) {
-          console.log(`[Nexus Sync] Retrieved ${cloudData.length} cloud sessions. Merging with ${local.length} local sessions.`);
+          console.log(`[Omni Sync] Retrieved ${cloudData.length} cloud sessions. Merging with ${local.length} local sessions.`);
           sessions = mergeSessions(cloudData, local);
           localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
 
@@ -1992,7 +2015,7 @@
           restoreActiveSession();
           return;
         } else if (local.length > 0) {
-          console.log(`[Nexus Sync] Puter Cloud sessions empty. Uploading ${local.length} local sessions to cloud...`);
+          console.log(`[Omni Sync] Puter Cloud sessions empty. Uploading ${local.length} local sessions to cloud...`);
           sessions = local.filter(s => s && s.id && !deletedSessionIds.has(s.id));
           await writePuterFileAndKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS, sessions);
           updateSyncStatusUI('Synced (Puter Cloud)', true);
@@ -2001,7 +2024,7 @@
           return;
         }
       } catch (err) {
-        console.warn('[Nexus Sync] Failed to load sessions from Puter Cloud:', err);
+        console.warn('[Omni Sync] Failed to load sessions from Puter Cloud:', err);
         updateSyncStatusUI('Sync error (using local cache)', false);
       }
     }
@@ -2018,7 +2041,7 @@
     try {
       localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
     } catch (e) {
-      console.warn('[Nexus Storage] LocalStorage write error:', e);
+      console.warn('[Omni Storage] LocalStorage write error:', e);
     }
 
     const isSignedIn = typeof puter !== 'undefined' && puter.auth && puter.auth.isSignedIn();
@@ -2027,7 +2050,7 @@
         await writePuterFileAndKV(PUTER_FS_SESSIONS_PATH, STORAGE_KEY_SESSIONS, sessions);
         updateSyncStatusUI('Synced (Puter Cloud)', true);
       } catch (e) {
-        console.warn('[Nexus Sync] Failed to persist to Puter Cloud:', e);
+        console.warn('[Omni Sync] Failed to persist to Puter Cloud:', e);
         updateSyncStatusUI('Sync warning (local saved)', false);
       }
     }
@@ -2147,7 +2170,7 @@
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(sessions, null, 2));
     const dlAnchor = document.createElement('a');
     dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', `nexus_ai_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    dlAnchor.setAttribute('download', `omni_chat_backup_${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(dlAnchor);
     dlAnchor.click();
     dlAnchor.remove();
@@ -2522,7 +2545,7 @@
         <img src="${escapeHtml(msg.imageGeneration.url)}" alt="${escapeHtml(msg.imageGeneration.prompt)}" class="ai-generated-image" />
         <div class="ai-image-footer">
           <span>🎨 ${escapeHtml(msg.imageGeneration.prompt)}</span>
-          <a href="${escapeHtml(msg.imageGeneration.url)}" download="nexus_ai_image_${Date.now()}.png" class="btn-export-doc" style="text-decoration: none;">
+          <a href="${escapeHtml(msg.imageGeneration.url)}" download="omni_chat_image_${Date.now()}.png" class="btn-export-doc" style="text-decoration: none;">
             ⬇ Download Image
           </a>
         </div>
@@ -2568,7 +2591,37 @@
       container.appendChild(userActions);
     }
 
-    // Meta & Action Bar for Assistant Messages (Copy, Regenerate, Export PDF/DOCX/MD)
+    // Dedicated Document Card when document intent is present (PDF / DOCX)
+    if (msg.role === 'assistant' && msg.documentIntent) {
+      const docCard = document.createElement('div');
+      docCard.className = 'ai-generated-document-card';
+      const isPdf = msg.documentIntent.type === 'pdf';
+      const docLabel = isPdf ? 'PDF' : 'Word (.docx)';
+      const docIcon = isPdf ? '📄' : '📝';
+      docCard.innerHTML = `
+        <div class="doc-card-left">
+          <span class="doc-card-badge">${docIcon}</span>
+          <div class="doc-card-text">
+            <span class="doc-card-title">${escapeHtml(msg.documentIntent.title || `${docLabel} Document Ready`)}</span>
+            <span class="doc-card-desc">Formatted document compiled and ready for download</span>
+          </div>
+        </div>
+        <button class="btn-download-doc-card" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download ${docLabel}
+        </button>
+      `;
+      docCard.querySelector('.btn-download-doc-card').addEventListener('click', () => {
+        if (isPdf) {
+          exportMessageAsPdf(msg.content, msgIndex);
+        } else {
+          exportMessageAsDocx(msg.content, msgIndex);
+        }
+      });
+      container.appendChild(docCard);
+    }
+
+    // Clean Action Bar for Assistant Messages (Model Tag, Copy, Regenerate)
     if (msg.role === 'assistant') {
       const actions = document.createElement('div');
       actions.className = 'message-actions';
@@ -2580,9 +2633,6 @@
         <button class="icon-btn-sm btn-regen-msg" title="Regenerate from here">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
         </button>
-        <button class="btn-export-doc btn-export-pdf" title="Export formatted response as PDF">📄 PDF</button>
-        <button class="btn-export-doc btn-export-docx" title="Export as Microsoft Word DOCX">📝 DOCX</button>
-        <button class="btn-export-doc btn-export-md" title="Export as Markdown file">📋 MD</button>
       `;
 
       actions.querySelector('.btn-copy-msg').addEventListener('click', () => {
@@ -2592,18 +2642,6 @@
 
       actions.querySelector('.btn-regen-msg').addEventListener('click', () => {
         regenerateFromIndex(msgIndex);
-      });
-
-      actions.querySelector('.btn-export-pdf').addEventListener('click', () => {
-        exportMessageAsPdf(msg.content, msgIndex);
-      });
-
-      actions.querySelector('.btn-export-docx').addEventListener('click', () => {
-        exportMessageAsDocx(msg.content, msgIndex);
-      });
-
-      actions.querySelector('.btn-export-md').addEventListener('click', () => {
-        exportMessageAsMarkdown(msg.content, msgIndex);
       });
 
       container.appendChild(actions);
@@ -2621,7 +2659,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nexus_response_${index + 1}.md`;
+    a.download = `omni_response_${index + 1}.md`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2636,7 +2674,7 @@
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
   <meta charset='utf-8'>
-  <title>Nexus AI Document</title>
+  <title>Omni Chat Document</title>
   <style>
     body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; margin: 2rem; }
     h1, h2, h3, h4 { color: #0f172a; margin-top: 1.2rem; }
@@ -2657,7 +2695,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nexus_document_${index + 1}.doc`;
+    a.download = `omni_document_${index + 1}.doc`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2677,7 +2715,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Nexus AI Document Export</title>
+  <title>Omni Chat Document Export</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; padding: 2.5rem; max-width: 800px; margin: 0 auto; }
     h1, h2, h3, h4 { color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3rem; }
@@ -2773,6 +2811,14 @@
       await persistSessions();
 
       renderActiveSession();
+
+      const imagePrompt = isImageGenerationPrompt(newText);
+      if (imagePrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2img === 'function') {
+        showToast('Generating AI image...');
+        await handleImageGeneration(session, imagePrompt, newText);
+        return;
+      }
+
       showToast('Prompt updated. Generating response...');
       await triggerAssistantResponse(session);
     });
@@ -2853,6 +2899,26 @@
     });
   }
 
+  // --- Document Generation Intent Detection (PDF / DOCX) ---
+  function detectDocumentIntent(text) {
+    if (!text || typeof text !== 'string') return null;
+    const trimmed = text.trim();
+
+    // PDF Intent: e.g. "generate a pdf", "create pdf report", "export as pdf", "draft pdf proposal", "write a pdf"
+    const pdfRegex = /(?:(?:generate|create|make|export|draft|write|download|prepare|produce|give\s+me)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:formatted\s+|clean\s+)?pdf|\b(?:as|in|into|to)\s+(?:a\s+)?pdf\b|\bpdf\s+(?:report|document|file|invoice|proposal|summary|doc|contract|guide)\b)/i;
+    if (pdfRegex.test(trimmed)) {
+      return { type: 'pdf', title: 'PDF Document Ready' };
+    }
+
+    // DOCX / Word Intent: e.g. "generate a docx", "create word document", "draft docx report", "export to docx"
+    const docxRegex = /(?:(?:generate|create|make|export|draft|write|download|prepare|produce|give\s+me)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:formatted\s+|clean\s+)?(?:docx?|word\s+doc(?:ument)?|ms\s*word)|\b(?:as|in|into|to)\s+(?:a\s+)?(?:docx?|word\s+doc(?:ument)?)\b|\b(?:docx?|word\s+doc(?:ument)?)\s+(?:report|document|file|proposal|summary|contract|guide)\b)/i;
+    if (docxRegex.test(trimmed)) {
+      return { type: 'docx', title: 'Word Document (.docx) Ready' };
+    }
+
+    return null;
+  }
+
   // --- Regenerate from Assistant message index ---
   function regenerateFromIndex(msgIndex) {
     const session = getActiveSession();
@@ -2864,25 +2930,100 @@
     triggerAssistantResponse(session);
   }
 
-  // --- Image Generation Detection ---
+  // --- AI Image Generation Mode & Detection ---
+  let isImageModeActive = false;
+  const btnImageMode = document.getElementById('btn-image-mode');
+
+  function updateImageModeUI() {
+    if (btnImageMode) {
+      btnImageMode.classList.toggle('active', isImageModeActive);
+    }
+    if (chatTextarea) {
+      if (isImageModeActive) {
+        chatTextarea.classList.add('image-mode');
+        chatTextarea.placeholder = '🎨 Describe the image or logo to generate (e.g. modern logo for Omni Chat app)...';
+      } else {
+        chatTextarea.classList.remove('image-mode');
+        chatTextarea.placeholder = 'Ask anything, paste images/files, or type /image...';
+      }
+    }
+  }
+
+  if (btnImageMode) {
+    btnImageMode.addEventListener('click', () => {
+      isImageModeActive = !isImageModeActive;
+      updateImageModeUI();
+      if (isImageModeActive) {
+        showToast('🎨 AI Image Mode active! Enter any description to generate an image.');
+      } else {
+        showToast('Switched to chat mode.');
+      }
+      chatTextarea.focus();
+    });
+  }
+
   function isImageGenerationPrompt(text) {
-    if (!text) return null;
+    if (!text || typeof text !== 'string') return null;
     const trimmed = text.trim();
-    if (trimmed.startsWith('/image ') || trimmed.startsWith('/img ')) {
-      return trimmed.replace(/^\/(?:image|img)\s+/i, '').trim();
+
+    // 1. Explicit command prefixes
+    const slashMatch = trimmed.match(/^\/(?:image|img|draw|generate|art|paint)\s+(.+)/i);
+    if (slashMatch && slashMatch[1].trim()) {
+      return slashMatch[1].trim();
     }
-    const regex = /^(?:please\s+)?(?:can you\s+)?(?:generate|create|draw|paint|render|make)\s+(?:an?\s+)?(?:image|picture|photo|illustration|drawing|artwork|visual)\s+(?:of|showing|depicting|with)?\s*(.+)/i;
-    const match = trimmed.match(regex);
-    if (match && match[1] && match[1].trim().length > 2) {
-      return match[1].trim();
+
+    // 2. Graphic and visual nouns
+    const visualNouns = [
+      'image', 'images', 'picture', 'pictures', 'photo', 'photos', 'photograph',
+      'logo', 'logos', 'icon', 'icons', 'banner', 'banners', 'avatar', 'avatars',
+      'illustration', 'illustrations', 'drawing', 'drawings', 'artwork', 'art',
+      'wallpaper', 'wallpapers', 'poster', 'posters', 'badge', 'badges',
+      'graphic', 'graphics', 'sketch', 'sketches', 'portrait', 'portraits',
+      'painting', 'paintings', 'render', 'renders', 'visual', 'visuals',
+      'emblem', 'emblems', 'symbol', 'symbols'
+    ];
+    const nounPattern = visualNouns.join('|');
+
+    // Pattern A: [please/can you/could you] [generate/create/draw/paint/make/design/render/sketch/illustrate/show me/produce] [me?] [a/an/the?] <noun> [of/for/showing/with/depicting/about?] <subject>
+    const verbNounRegex = new RegExp(
+      '^(?:(?:please|can you|could you|kindly)\\s+)?(?:generate|create|draw|paint|make|design|render|sketch|illustrate|show me|produce)\\s+(?:me\\s+)?(?:an?\\s+|the\\s+)?(' +
+      nounPattern +
+      ')\\s*(?:of|for|showing|with|depicting|about)?\\s*(.+)$',
+      'i'
+    );
+    const vnMatch = trimmed.match(verbNounRegex);
+    if (vnMatch && vnMatch[2] && vnMatch[2].trim().length > 1) {
+      const noun = vnMatch[1].trim();
+      const subject = vnMatch[2].trim();
+      return `${noun} for ${subject}`;
     }
+
+    // Pattern B: Direct creative verbs: "draw a cat", "paint a sunset", "sketch a mountain"
+    const directVerbRegex = /^(?:(?:please|can you|could you|kindly)\s+)?(?:draw|paint|sketch|illustrate)\s+(?:me\s+)?(?:an?\s+|the\s+)?(.+)$/i;
+    const dvMatch = trimmed.match(directVerbRegex);
+    if (dvMatch && dvMatch[1] && dvMatch[1].trim().length > 2) {
+      const target = dvMatch[1].trim();
+      if (!/^(?:conclusions?|inferences?|parallels?|diagrams?\s+of\s+code|comparisons?)/i.test(target)) {
+        return target;
+      }
+    }
+
+    // Pattern C: "logo for..." or "icon for..." without leading verb
+    const directNounRegex = new RegExp('^(?:an?\\s+|the\\s+)?(' + nounPattern + ')\\s+(?:of|for|showing)\\s+(.+)$', 'i');
+    const dnMatch = trimmed.match(directNounRegex);
+    if (dnMatch && dnMatch[2] && dnMatch[2].trim().length > 1) {
+      return trimmed;
+    }
+
     return null;
   }
 
   async function handleImageGeneration(session, promptText, originalUserPrompt) {
+    console.log('[Omni Image] Generating image via puter.ai.txt2img with prompt:', promptText);
+
     const assistantMsg = {
       role: 'assistant',
-      content: `Here is your generated image of: **"${promptText}"**`,
+      content: `Here is your generated image for: **"${promptText}"**`,
       model: 'puter.ai.txt2img',
       timestamp: Date.now()
     };
@@ -2913,11 +3054,32 @@
 
     try {
       showToast('Generating AI image with Puter...');
-      const imgElement = await puter.ai.txt2img(promptText);
-      const imgSrc = imgElement ? (imgElement.src || (imgElement.getAttribute && imgElement.getAttribute('src'))) : null;
+
+      if (typeof puter === 'undefined' || !puter.ai || typeof puter.ai.txt2img !== 'function') {
+        throw new Error('Puter AI txt2img is not available. Please verify Puter.js is loaded.');
+      }
+
+      const imgResult = await puter.ai.txt2img(promptText);
+
+      let imgSrc = null;
+      if (typeof imgResult === 'string') {
+        imgSrc = imgResult;
+      } else if (imgResult && typeof imgResult.src === 'string' && imgResult.src) {
+        imgSrc = imgResult.src;
+      } else if (imgResult && typeof imgResult.getAttribute === 'function' && imgResult.getAttribute('src')) {
+        imgSrc = imgResult.getAttribute('src');
+      } else if (imgResult && imgResult.url) {
+        imgSrc = imgResult.url;
+      } else if (imgResult instanceof Blob) {
+        imgSrc = URL.createObjectURL(imgResult);
+      }
+
+      if (!imgSrc && imgResult && imgResult.tagName && imgResult.tagName.toLowerCase() === 'img') {
+        imgSrc = imgResult.src;
+      }
 
       if (!imgSrc) {
-        throw new Error('No image returned from Puter AI txt2img');
+        throw new Error('No image returned from Puter AI txt2img.');
       }
 
       assistantBubble.innerHTML = `Here is your generated image for: **"${escapeHtml(promptText)}"**`;
@@ -2933,9 +3095,25 @@
       renderActiveSession();
       showToast('Image generated successfully!');
     } catch (err) {
-      console.warn('[Nexus Image] Generation error:', err);
-      assistantBubble.innerHTML = `<span style="color: var(--danger-color);">⚠️ Image generation failed: ${escapeHtml(err.message || 'Error')}. Switching to text model...</span>`;
-      await triggerAssistantResponse(session);
+      console.warn('[Omni Image] Generation error:', err);
+      const isAuthErr = (err.message || '').toLowerCase().includes('sign in') || (err.message || '').toLowerCase().includes('auth') || (err.message || '').toLowerCase().includes('login');
+      if (isAuthErr) {
+        assistantBubble.innerHTML = `
+          <div class="chat-error-card">
+            <div class="chat-error-header"><strong>Puter Sign In Required</strong></div>
+            <div class="chat-error-body">Please sign in with Puter to generate AI images. Puter accounts receive free AI image credits.</div>
+            <div class="chat-error-actions">
+              <button class="btn-recovery" id="btn-err-signin-puter">Sign In with Puter</button>
+            </div>
+          </div>
+        `;
+        assistantBubble.querySelector('#btn-err-signin-puter')?.addEventListener('click', () => {
+          puter.auth.signIn();
+        });
+      } else {
+        assistantBubble.innerHTML = `<span style="color: var(--danger-color);">⚠️ Image generation failed: ${escapeHtml(err.message || 'Error occurred')}. Switching to text model...</span>`;
+        await triggerAssistantResponse(session);
+      }
     }
   }
 
@@ -2995,17 +3173,33 @@
     messagesInner.appendChild(userEl);
     scrollToBottom();
 
-    // Check if user is asking for image generation
-    const imagePrompt = isImageGenerationPrompt(text);
+    // Check if user is asking for image generation (via mode or natural prompt)
+    let imagePrompt = null;
+    if (isImageModeActive) {
+      imagePrompt = text.replace(/^\/(?:image|img|draw|generate)\s+/i, '').trim() || text;
+    } else {
+      imagePrompt = isImageGenerationPrompt(text);
+    }
+
     if (imagePrompt && typeof puter !== 'undefined' && puter.ai && typeof puter.ai.txt2img === 'function') {
       await handleImageGeneration(session, imagePrompt, text);
       return;
     }
 
-    await triggerAssistantResponse(session);
+    // Check for document intent (PDF / DOCX)
+    const docIntent = detectDocumentIntent(text);
+
+    await triggerAssistantResponse(session, docIntent);
   }
 
-  async function triggerAssistantResponse(session) {
+  async function triggerAssistantResponse(session, docIntent = null) {
+    if (!docIntent && session && Array.isArray(session.messages)) {
+      const lastUserMsg = [...session.messages].reverse().find(m => m.role === 'user');
+      if (lastUserMsg && lastUserMsg.content) {
+        docIntent = detectDocumentIntent(lastUserMsg.content);
+      }
+    }
+
     const sessionProj = (session && session.projectId)
       ? projects.find(p => p.id === session.projectId)
       : getActiveProject();
@@ -3016,6 +3210,7 @@
       content: '',
       reasoning: '',
       model: effectiveModel,
+      documentIntent: docIntent || undefined,
       timestamp: Date.now()
     };
 
@@ -3062,9 +3257,13 @@
       }
 
       // Prepare conversation payload with compiled project instructions or global system prompt
-      const systemPromptContent = sessionProj
+      let systemPromptContent = sessionProj
         ? compileProjectSystemPrompt(sessionProj)
         : settings.systemPrompt;
+
+      if (docIntent) {
+        systemPromptContent += `\n\n[DOCUMENT DRAFTING DIRECTIVE: The user's goal is to generate/export a ${docIntent.type.toUpperCase()} document. Do NOT output disclaimers saying you cannot create files or download documents. Directly draft the complete, comprehensive, beautifully structured document using clean Markdown (clear headings #/##/###, structured sections, bullet points, and tables where appropriate). The Omni Chat interface will automatically compile your response into a downloadable ${docIntent.type.toUpperCase()} document file for the user.]`;
+      }
 
       const conversationPayload = [
         { role: 'system', content: systemPromptContent }
@@ -3155,11 +3354,44 @@
 
       assistantMsg.content = accumulatedText || '*(Empty response)*';
       assistantMsg.reasoning = accumulatedReasoning;
+      if (docIntent) {
+        assistantMsg.documentIntent = docIntent;
+      }
       session.messages.push(assistantMsg);
       session.updatedAt = Date.now();
       await persistSessions();
 
-      // Render action buttons
+      // If document intent was detected, render the interactive document download card
+      if (docIntent) {
+        const docCard = document.createElement('div');
+        docCard.className = 'ai-generated-document-card';
+        const isPdf = docIntent.type === 'pdf';
+        const docLabel = isPdf ? 'PDF' : 'Word (.docx)';
+        const docIcon = isPdf ? '📄' : '📝';
+        docCard.innerHTML = `
+          <div class="doc-card-left">
+            <span class="doc-card-badge">${docIcon}</span>
+            <div class="doc-card-text">
+              <span class="doc-card-title">${escapeHtml(docIntent.title || `${docLabel} Document Ready`)}</span>
+              <span class="doc-card-desc">Formatted document compiled and ready for download</span>
+            </div>
+          </div>
+          <button class="btn-download-doc-card" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Download ${docLabel}
+          </button>
+        `;
+        docCard.querySelector('.btn-download-doc-card').addEventListener('click', () => {
+          if (isPdf) {
+            exportMessageAsPdf(assistantMsg.content, session.messages.length - 1);
+          } else {
+            exportMessageAsDocx(assistantMsg.content, session.messages.length - 1);
+          }
+        });
+        assistantContainer.appendChild(docCard);
+      }
+
+      // Render clean action buttons
       const actions = document.createElement('div');
       actions.className = 'message-actions';
       actions.innerHTML = `
@@ -3170,9 +3402,6 @@
         <button class="icon-btn-sm btn-regen-msg" title="Regenerate">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
         </button>
-        <button class="btn-export-doc btn-export-pdf" title="Export formatted response as PDF">📄 PDF</button>
-        <button class="btn-export-doc btn-export-docx" title="Export as Microsoft Word DOCX">📝 DOCX</button>
-        <button class="btn-export-doc btn-export-md" title="Export as Markdown file">📋 MD</button>
       `;
       actions.querySelector('.btn-copy-msg').addEventListener('click', () => {
         navigator.clipboard.writeText(assistantMsg.content);
@@ -3180,15 +3409,6 @@
       });
       actions.querySelector('.btn-regen-msg').addEventListener('click', () => {
         regenerateFromIndex(session.messages.length - 1);
-      });
-      actions.querySelector('.btn-export-pdf').addEventListener('click', () => {
-        exportMessageAsPdf(assistantMsg.content, session.messages.length - 1);
-      });
-      actions.querySelector('.btn-export-docx').addEventListener('click', () => {
-        exportMessageAsDocx(assistantMsg.content, session.messages.length - 1);
-      });
-      actions.querySelector('.btn-export-md').addEventListener('click', () => {
-        exportMessageAsMarkdown(assistantMsg.content, session.messages.length - 1);
       });
       assistantContainer.appendChild(actions);
 

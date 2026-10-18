@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI - Animated Logo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: radial-gradient(circle at center, #111728 0%, #06080e 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .nexus-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    /* Ambient Core Glow */
+    .ambient-glow {
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 245, 212, 0.25) 0%, rgba(123, 44, 191, 0.2) 50%, transparent 70%);
+      filter: blur(40px);
+      animation: pulse-ambient 4s ease-in-out infinite alternate;
+      z-index: 0;
+    }
+
+    svg {
+      z-index: 1;
+      width: 320px;
+      height: 320px;
+      overflow: visible;
+    }
+
+    /* Animated Lines */
+    .trace-path {
+      stroke-dasharray: 450;
+      stroke-dashoffset: 450;
+      animation: draw-line 3s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+    }
+
+    .pulse-beam {
+      stroke-dasharray: 60 200;
+      animation: flow-beam 2.5s linear infinite;
+    }
+
+    /* Animated Nodes */
+    .node {
+      transform-origin: center;
+      animation: scale-node 2s ease-in-out infinite alternate;
+    }
+
+    .node-1 { animation-delay: 0.2s; }
+    .node-2 { animation-delay: 0.8s; }
+    .node-center { animation-delay: 1.4s; }
+
+    /* Title Animation */
+    .title-text {
+      margin-top: 15px;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      color: #ffffff;
+      text-transform: uppercase;
+      z-index: 1;
+      animation: text-shimmer 3s ease-in-out infinite alternate;
+    }
+
+    .title-text span {
+      background: linear-gradient(90deg, #00f5d4, #7b2cbf);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Keyframe Animations */
+    @keyframes draw-line {
+      0% {
+        stroke-dashoffset: 450;
+      }
+      100% {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes flow-beam {
+      0% {
+        stroke-dashoffset: 350;
+      }
+      100% {
+        stroke-dashoffset: -350;
+      }
+    }
+
+    @keyframes scale-node {
+      0% {
+        transform: scale(0.85);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(1.25);
+        opacity: 1;
+        filter: drop-shadow(0 0 12px #00f5d4);
+      }
+    }
+
+    @keyframes pulse-ambient {
+      0% {
+        transform: scale(0.8);
+        opacity: 0.4;
+      }
+      100% {
+        transform: scale(1.25);
+        opacity: 0.8;
+      }
+    }
+
+    @keyframes text-shimmer {
+      0% {
+        opacity: 0.75;
+        text-shadow: 0 0 10px rgba(0, 245, 212, 0.2);
+      }
+      100% {
+        opacity: 1;
+        text-shadow: 0 0 20px rgba(123, 44, 191, 0.6), 0 0 35px rgba(0, 245, 212, 0.4);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="nexus-card">
+    <div class="ambient-glow"></div>
+
+    <svg viewBox="0 0 300 300">
+      <defs>
+        <!-- Gradients -->
+        <linearGradient id="cyberGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00F5D4" />
+          <stop offset="50%" stop-color="#7B2CBF" />
+          <stop offset="100%" stop-color="#00BBF9" />
+        </linearGradient>
+
+        <linearGradient id="beamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0)" />
+          <stop offset="50%" stop-color="#ffffff" />
+          <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+        </linearGradient>
+
+        <!-- Glow Filter -->
+        <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Outer Neural Rings -->
+      <circle cx="150" cy="150" r="120" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" fill="none" />
+      <circle cx="150" cy="150" r="120" stroke="#00F5D4" stroke-width="2" stroke-linecap="round" fill="none" class="pulse-beam" opacity="0.4" />
+
+      <!-- Main "N" Backbone Base Path -->
+      <path d="M 90,220 L 90,80 L 210,220 L 210,80" 
+            fill="none" 
+            stroke="rgba(255, 255, 255, 0.08)" 
+            stroke-width="18" 
+            stroke-linecap="round" 
+            stroke-linejoin="round" />
+
+      <!-- Animated Tracer "N" Path -->
+      <path d="M 90,220 L 90,80 L 210,220 L 210,80" 
+            fill="none" 
+            stroke="url(#cyberGradient)" 
+            stroke-width="18" 
+            stroke-linecap="round" 
+            stroke-linejoin="round"
+            filter="url(#neon-glow)"
+            class="trace-path" />
+
+      <!-- High-speed Pulse Overlay -->
+      <path d="M 90,220 L 90,80 L 210,220 L 210,80" 
+            fill="none" 
+            stroke="url(#beamGradient)" 
+            stroke-width="8" 
+            stroke-linecap="round" 
+            stroke-linejoin="round"
+            class="pulse-beam" />
+
+      <!-- Neural Junction Nodes -->
+      <g filter="url(#neon-glow)">
+        <circle cx="90" cy="80" r="11" fill="#00F5D4" class="node node-1" />
+        <circle cx="150" cy="150" r="8" fill="#FFFFFF" class="node node-center" />
+        <circle cx="210" cy="220" r="11" fill="#7B2CBF" class="node node-2" />
+      </g>
+    </svg>
+
+    <div class="title-text">NEXUS<span>.AI</span></div>
+  </div>
+
+</body>
+</html>

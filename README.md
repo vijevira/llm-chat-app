@@ -1,4 +1,4 @@
-# LLM Chat Application — Powered by Puter.js
+# Omni Chat — Powered by Puter.js
 
 A modern, serverless AI chat application built with **[Puter.js](https://docs.puter.com/llms.txt)**. Access 500+ AI models (OpenAI, Anthropic, Google, Meta Llama, DeepSeek, Mistral, xAI) directly in the browser with real-time streaming, Puter cloud persistence, and zero API key management.
 

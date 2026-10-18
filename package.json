@@ -1,9 +1,9 @@
 {
-  "name": "nexus-ai",
+  "name": "omni-chat",
   "description": "Universal AI chat interface with 500+ models powered by Puter.js",
   "version": "1.0.0",
   "cloudflare": {
-    "label": "Nexus AI",
+    "label": "Omni Chat",
     "products": [
       "Workers",
       "Workers AI",

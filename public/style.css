@@ -2778,7 +2778,76 @@ body.sidebar-closed #btn-toggle-sidebar,
   gap: 0.5rem;
 }
 
-/* Document Export Buttons */
+/* AI Generated Document Card (Rendered when user asks to generate/draft PDF or DOCX) */
+.ai-generated-document-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--accent-color);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.1rem;
+  margin-top: 0.85rem;
+  transition: var(--transition);
+}
+
+.ai-generated-document-card:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.doc-card-badge {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.doc-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.doc-card-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.doc-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.btn-download-doc-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.95rem;
+  background: var(--accent-gradient, linear-gradient(135deg, #4f46e5, #06b6d4));
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+.btn-download-doc-card:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
 .btn-export-doc {
   display: inline-flex;
   align-items: center;
@@ -2798,5 +2867,24 @@ body.sidebar-closed #btn-toggle-sidebar,
   border-color: var(--accent-color);
   background: var(--hover-color);
 }
+
+/* AI Image Mode Button & Active State */
+#btn-image-mode {
+  transition: all 0.2s ease;
+}
+
+#btn-image-mode.active {
+  color: #ffffff;
+  background: var(--accent-gradient, linear-gradient(135deg, #4f46e5, #06b6d4));
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.45);
+  border-radius: 50%;
+}
+
+.chat-textarea.image-mode {
+  border-color: var(--accent-color);
+}
+
+
+
 
 
