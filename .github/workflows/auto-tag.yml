@@ -1,0 +1,127 @@
+name: Auto Tag on Release Notes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'release-notes/v*.md'
+      - 'release-notes/**.md'
+      - 'release-note/v*.md'
+      - 'release-note/**.md'
+      - 'v*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag-release:
+    name: Auto Tag & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Validate Project Code
+        run: |
+          npm ci --include=dev || npm install
+          npx tsc --noEmit || true
+
+      - name: Manage Version Tags and Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          BEFORE="${{ github.event.before }}"
+          CURRENT="${{ github.sha }}"
+
+          echo "Current commit: $CURRENT"
+          echo "Previous commit: $BEFORE"
+
+          # Determine changed files in this push safely
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            CHANGED_FILES=$(git diff --name-only "$BEFORE" "$CURRENT")
+          else
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "$CURRENT")
+          fi
+
+          echo "Changed files in this push:"
+          echo "$CHANGED_FILES"
+
+          # Configure git author identity for tags
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          FOUND_TAG=false
+
+          for FILE in $CHANGED_FILES; do
+            # Only process files that exist (ignore deletions)
+            if [ ! -f "$FILE" ]; then
+              continue
+            fi
+
+            BASENAME=$(basename "$FILE")
+
+            # Match files like v1.0.0.md or release-notes/v1.0.0.md
+            if echo "$BASENAME" | grep -Eq '^v[0-9]+(\.[0-9]+)*.*\.md$'; then
+              TAG="${BASENAME%.md}"
+              echo "----------------------------------------------------"
+              echo "Processing release file: $FILE -> Tag: $TAG"
+              FOUND_TAG=true
+
+              # Check if tag already exists on remote origin
+              if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "refs/tags/${TAG}$"; then
+                echo "Tag ${TAG} already exists on remote. Deleting old tag to retag with current commit..."
+                git push origin --delete "${TAG}" || git push origin ":refs/tags/${TAG}" || true
+
+                # If an existing GitHub Release exists for this tag, clean it up so it can be retagged
+                if command -v gh >/dev/null 2>&1; then
+                  echo "Cleaning up existing GitHub Release for ${TAG}..."
+                  gh release delete "${TAG}" --yes --cleanup-tag 2>/dev/null || true
+                fi
+
+                # Delete local tag if present
+                git tag -d "${TAG}" 2>/dev/null || true
+              fi
+
+              # Ensure no local tag conflicts
+              git tag -d "${TAG}" 2>/dev/null || true
+
+              # Create fresh annotated tag on current commit
+              echo "Creating fresh tag ${TAG} at ${CURRENT}..."
+              git tag -a "${TAG}" -m "Release ${TAG}" "${CURRENT}"
+
+              # Push tag to remote
+              echo "Pushing tag ${TAG} to remote origin..."
+              git push origin "refs/tags/${TAG}"
+
+              # Create or update GitHub Release with the release notes markdown
+              if command -v gh >/dev/null 2>&1; then
+                echo "Publishing GitHub Release for ${TAG} with notes from ${FILE}..."
+                gh release create "${TAG}" \
+                  --title "Omni Chat ${TAG}" \
+                  --notes-file "${FILE}" \
+                  --target "${CURRENT}" 2>/dev/null || \
+                gh release edit "${TAG}" --notes-file "${FILE}" 2>/dev/null || true
+              fi
+
+              echo "Tag ${TAG} successfully set to commit ${CURRENT}!"
+              echo "----------------------------------------------------"
+            fi
+          done
+
+          if [ "$FOUND_TAG" = "false" ]; then
+            echo "No matching release note files (v*.md) detected in this push."
+          fi
+

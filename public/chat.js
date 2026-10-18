@@ -7,6 +7,7 @@
   'use strict';
 
   // --- Constants & Presets ---
+  const APP_VERSION = 'v1.0.0';
   const DEFAULT_MODEL = 'gpt-4o-mini';
   const STORAGE_KEY_SESSIONS = 'omni_chat_sessions';
   const STORAGE_KEY_SETTINGS = 'omni_chat_settings';
@@ -208,6 +209,10 @@
   const importFileInput = document.getElementById('import-file-input');
   const btnModalClearChats = document.getElementById('btn-modal-clear-chats');
   const toastContainer = document.getElementById('toast-container');
+  const appVersionBadge = document.getElementById('app-version-badge');
+  if (appVersionBadge) {
+    appVersionBadge.textContent = `Omni Chat ${APP_VERSION}`;
+  }
 
   // In-Window Custom Project Studio Elements
   const chatTopbar = document.getElementById('chat-topbar');
