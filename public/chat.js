@@ -75,6 +75,7 @@
   let projects = [];
   let activeProjectId = null;
   let expandedProjectIds = new Set();
+  let expandedSandboxIds = new Set();
   let editingProjectId = null;
   let editingProjectFiles = [];
   let editingProjectIcon = '⚡';
@@ -104,6 +105,10 @@
   const projectsSection = document.getElementById('projects-section');
   const btnCreateProject = document.getElementById('btn-create-project');
   const projectsList = document.getElementById('projects-list');
+  const sandboxSidebarSection = document.getElementById('sandbox-sidebar-section');
+  const btnSidebarCreateSandbox = document.getElementById('btn-sidebar-create-sandbox');
+  const sidebarSandboxList = document.getElementById('sidebar-sandbox-list');
+  const sidebarSandboxCountBadge = document.getElementById('sidebar-sandbox-count-badge');
   const chatHistoryList = document.getElementById('chat-history-list');
 
   const userProfileBar = document.getElementById('user-profile-bar');
@@ -867,6 +872,8 @@
       await syncTombstones();
       await loadProjects();
       await loadSessions();
+      await syncSandboxHistoryFromCloud();
+      renderSidebarSandboxAppsList();
       updateSyncStatusUI('Synced (Puter Cloud)', true);
     } catch (err) {
       console.error('[Omni Puter] Puter init error:', err);
@@ -1387,6 +1394,7 @@
     projects = getLocalProjects().filter(p => p && p.id && !deletedProjectIds.has(p.id));
     ensureProjectExpandedState();
     renderProjectsList();
+    renderSidebarSandboxAppsList();
     updateTopbarProjectPill();
   }
 
@@ -1781,6 +1789,7 @@
     if (inputAreaWrapper) inputAreaWrapper.style.display = 'none';
     if (btnScrollBottom) btnScrollBottom.style.display = 'none';
     if (projectStudioView) projectStudioView.style.display = 'flex';
+    if (sandboxStudioView) sandboxStudioView.style.display = 'none';
 
     // Reset mobile pane toggle
     if (studioMobileToggle) {
@@ -2141,6 +2150,9 @@
   }
 
   function createNewSession() {
+    if (sandboxStudioView && sandboxStudioView.style.display !== 'none') {
+      closeSandboxStudio();
+    }
     activeProjectId = null;
     const newSession = {
       id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -2193,6 +2205,9 @@
     if (activeAbortController) {
       activeAbortController.abort();
       activeAbortController = null;
+    }
+    if (sandboxStudioView && sandboxStudioView.style.display !== 'none') {
+      closeSandboxStudio();
     }
     currentSessionId = id;
     const session = sessions.find(s => s.id === id);
@@ -6540,13 +6555,14 @@ Requirements:
     renderSandboxRecentBuilds();
 
     if (initialApp && initialApp.code) {
-      loadSandboxApp(initialApp.title || 'Web Application', initialApp.code, initialApp.prompt || '');
+      loadSandboxApp(initialApp.title || 'Web Application', initialApp.code, initialApp.prompt || '', initialApp.id || null, initialApp.turns || null);
     } else if (currentSandboxApp && currentSandboxApp.code) {
       renderSandboxStudioState();
     } else {
       // Clean initial state: NO default app!
       resetSandboxStudio();
     }
+    renderSidebarSandboxAppsList();
   }
 
   function closeSandboxStudio() {
@@ -6556,6 +6572,7 @@ Requirements:
     if (chatTopbar) chatTopbar.style.display = 'flex';
     if (messagesContainer) messagesContainer.style.display = 'flex';
     if (inputAreaWrapper) inputAreaWrapper.style.display = 'block';
+    renderSidebarSandboxAppsList();
   }
 
   function resetSandboxStudio() {
@@ -6592,6 +6609,7 @@ Requirements:
 
     renderSandboxHistoryBadge();
     renderSandboxRecentBuilds();
+    renderSidebarSandboxAppsList();
     switchSandboxSubTab('chat');
   }
 
@@ -6799,6 +6817,7 @@ Requirements:
 
     renderSandboxHistoryBadge();
     renderSandboxRecentBuilds();
+    renderSidebarSandboxAppsList();
   }
 
   function deleteSandboxHistoryItem(id) {
@@ -6810,9 +6829,14 @@ Requirements:
         puter.kv.set(SANDBOX_HISTORY_STORAGE_KEY, history).catch(() => {});
       }
     } catch (e) {}
+
+    if (currentSandboxApp && currentSandboxApp.id === id) {
+      resetSandboxStudio();
+    }
     renderSandboxHistoryBadge();
     renderSandboxHistoryList(sandboxHistorySearch?.value || '');
     renderSandboxRecentBuilds();
+    renderSidebarSandboxAppsList();
     showToast('Application deleted from history.');
   }
 
@@ -6824,9 +6848,11 @@ Requirements:
         puter.kv.del(SANDBOX_HISTORY_STORAGE_KEY).catch(() => {});
       }
     } catch (e) {}
+    resetSandboxStudio();
     renderSandboxHistoryBadge();
     renderSandboxHistoryList();
     renderSandboxRecentBuilds();
+    renderSidebarSandboxAppsList();
     showToast('Build history cleared.');
   }
 
@@ -6837,9 +6863,336 @@ Requirements:
       showToast('App not found in history.');
       return;
     }
+    openSandboxStudio();
     loadSandboxApp(item.title, item.code, item.prompt, item.id, item.turns);
     closeSandboxHistoryDrawer();
+    renderSidebarSandboxAppsList();
     showToast(`Loaded "${item.title}" into Sandbox Studio!`);
+  }
+
+  function renameSandboxApp(id, newTitle) {
+    if (!newTitle || !newTitle.trim()) return;
+    const history = getSandboxHistory();
+    const item = history.find(h => h.id === id);
+    if (!item) return;
+    item.title = newTitle.trim();
+    item.updatedAt = Date.now();
+
+    try {
+      localStorage.setItem(SANDBOX_HISTORY_STORAGE_KEY, JSON.stringify(history));
+      if (typeof puter !== 'undefined' && puter.auth?.isSignedIn() && puter.kv) {
+        puter.kv.set(SANDBOX_HISTORY_STORAGE_KEY, history).catch(() => {});
+      }
+    } catch (e) {}
+
+    if (currentSandboxApp && currentSandboxApp.id === id) {
+      currentSandboxApp.title = item.title;
+      if (sandboxHeaderTitle) sandboxHeaderTitle.textContent = item.title;
+    }
+
+    renderSandboxHistoryBadge();
+    renderSandboxRecentBuilds();
+    renderSidebarSandboxAppsList();
+    showToast(`Renamed to "${item.title}"`);
+  }
+
+  function startSidebarSandboxInlineRename(header, app) {
+    if (!header || !app) return;
+    header.classList.add('editing');
+    header.innerHTML = `
+      <div class="chat-item-rename-box" style="width:100%;display:flex;align-items:center;gap:4px;">
+        <input type="text" class="chat-item-rename-input" value="${escapeHtml(app.title || '')}" maxlength="60" style="flex:1;" />
+        <button class="icon-btn-sm btn-confirm-rename" title="Save name">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+        <button class="icon-btn-sm btn-cancel-rename" title="Cancel">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    `;
+
+    const input = header.querySelector('.chat-item-rename-input');
+    const btnConfirm = header.querySelector('.btn-confirm-rename');
+    const btnCancel = header.querySelector('.btn-cancel-rename');
+
+    if (input) {
+      input.focus();
+      input.select();
+    }
+
+    let isDone = false;
+    const commitRename = (e) => {
+      if (isDone) return;
+      isDone = true;
+      if (e) e.stopPropagation();
+      const val = input ? input.value.trim() : '';
+      if (val && val !== app.title) {
+        renameSandboxApp(app.id, val);
+      } else {
+        renderSidebarSandboxAppsList();
+      }
+    };
+
+    const cancelRename = (e) => {
+      if (isDone) return;
+      isDone = true;
+      if (e) e.stopPropagation();
+      renderSidebarSandboxAppsList();
+    };
+
+    if (btnConfirm) btnConfirm.addEventListener('click', commitRename);
+    if (btnCancel) btnCancel.addEventListener('click', cancelRename);
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commitRename(e);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelRename(e);
+        }
+      });
+      input.addEventListener('blur', (e) => {
+        setTimeout(() => {
+          if (!isDone) commitRename(e);
+        }, 150);
+      });
+    }
+  }
+
+  function renderSidebarSandboxAppsList() {
+    if (!sidebarSandboxList) return;
+    sidebarSandboxList.innerHTML = '';
+
+    const history = getSandboxHistory();
+
+    if (sidebarSandboxCountBadge) {
+      if (history.length > 0) {
+        sidebarSandboxCountBadge.textContent = history.length > 99 ? '99+' : String(history.length);
+        sidebarSandboxCountBadge.style.display = 'inline-flex';
+      } else {
+        sidebarSandboxCountBadge.style.display = 'none';
+      }
+    }
+
+    if (history.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'projects-empty-hint';
+      empty.textContent = 'No web apps yet. Click + to build your first interactive web app!';
+      sidebarSandboxList.appendChild(empty);
+      return;
+    }
+
+    const isStudioOpen = sandboxStudioView && sandboxStudioView.style.display !== 'none';
+
+    history.forEach(app => {
+      const isExpanded = expandedSandboxIds.has(app.id);
+      const isActiveApp = isStudioOpen && currentSandboxApp && (currentSandboxApp.id === app.id);
+
+      const userTurns = (app.turns || []).filter(t => t.sender === 'user');
+      const turnCount = userTurns.length || 1;
+      const turnBadge = `<span class="project-nav-badge" title="${turnCount} conversation iteration${turnCount === 1 ? '' : 's'}">${turnCount} 💬</span>`;
+      const fileBadge = `<span class="project-nav-badge" title="3 codebase files (HTML/CSS/JS)">3 📄</span>`;
+
+      const group = document.createElement('div');
+      group.className = 'project-group sandbox-app-group' + (isExpanded ? ' expanded' : '') + (isActiveApp ? ' active' : '');
+      group.setAttribute('data-sandbox-id', app.id);
+
+      const header = document.createElement('div');
+      header.className = 'project-group-header';
+      header.innerHTML = `
+        <button class="project-group-chevron" title="${isExpanded ? 'Collapse app iterations' : 'Expand app iterations'}" aria-label="Toggle app iterations">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <div class="project-group-main">
+          <span class="project-group-icon">⚡</span>
+          <span class="project-group-name" title="${escapeHtml(app.title || 'Web Application')}">${escapeHtml(app.title || 'Web Application')}</span>
+          ${turnBadge}
+          ${fileBadge}
+        </div>
+        <div class="project-group-actions">
+          <button class="icon-btn-xs btn-iterate-sandbox" title="Iterate / New Prompt in ${escapeHtml(app.title || 'App')}" aria-label="Iterate in web app">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="icon-btn-xs btn-rename-sandbox" title="Rename App" aria-label="Rename App">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          </button>
+          <button class="icon-btn-xs btn-export-sidebar-sandbox" title="Export Codebase (${escapeHtml(app.title || 'App')})" aria-label="Export Codebase">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button class="icon-btn-xs btn-delete-sidebar-sandbox" title="Delete ${escapeHtml(app.title || 'App')}" aria-label="Delete App" style="color:var(--text-muted);">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      `;
+
+      // Click header to open Sandbox app
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('.project-group-actions') || e.target.closest('.icon-btn-xs') || e.target.closest('.project-group-chevron') || header.classList.contains('editing')) return;
+        loadSandboxFromHistory(app.id);
+        closeSidebarIfMobile();
+      });
+
+      // Chevron toggle
+      const chevronBtn = header.querySelector('.project-group-chevron');
+      if (chevronBtn) {
+        chevronBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (expandedSandboxIds.has(app.id)) {
+            expandedSandboxIds.delete(app.id);
+          } else {
+            expandedSandboxIds.add(app.id);
+          }
+          renderSidebarSandboxAppsList();
+        });
+      }
+
+      // Iterate button (+)
+      const btnIterate = header.querySelector('.btn-iterate-sandbox');
+      if (btnIterate) {
+        btnIterate.addEventListener('click', (e) => {
+          e.stopPropagation();
+          loadSandboxFromHistory(app.id);
+          switchSandboxSubTab('chat');
+          if (sandboxChatInput) {
+            sandboxChatInput.focus();
+          }
+          closeSidebarIfMobile();
+          showToast(`Ready to iterate on "${app.title}". Type your instructions.`);
+        });
+      }
+
+      // Rename button
+      const btnRename = header.querySelector('.btn-rename-sandbox');
+      if (btnRename) {
+        btnRename.addEventListener('click', (e) => {
+          e.stopPropagation();
+          startSidebarSandboxInlineRename(header, app);
+        });
+      }
+
+      // Double-click name to rename
+      const nameSpan = header.querySelector('.project-group-name');
+      if (nameSpan) {
+        nameSpan.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          startSidebarSandboxInlineRename(header, app);
+        });
+      }
+
+      // Export button
+      const btnExport = header.querySelector('.btn-export-sidebar-sandbox');
+      if (btnExport) {
+        btnExport.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openSandboxExportModal(app);
+        });
+      }
+
+      // Delete button
+      const btnDelete = header.querySelector('.btn-delete-sidebar-sandbox');
+      if (btnDelete) {
+        btnDelete.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`Delete "${app.title || 'this app'}" from Sandbox history?`)) {
+            deleteSandboxHistoryItem(app.id);
+          }
+        });
+      }
+
+      group.appendChild(header);
+
+      // If expanded, render the nested iterations (conversational iteration thread)
+      if (isExpanded) {
+        const chatsContainer = document.createElement('div');
+        chatsContainer.className = 'project-group-chats';
+
+        const turns = (app.turns || []).filter(t => t.sender === 'user');
+        if (turns.length === 0 && app.prompt) {
+          turns.push({ sender: 'user', text: app.prompt });
+        }
+
+        if (turns.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'project-empty-hint';
+          empty.textContent = 'Initial build';
+          chatsContainer.appendChild(empty);
+        } else {
+          turns.forEach((turn, idx) => {
+            const chatItem = document.createElement('div');
+            chatItem.className = 'project-nested-chat';
+            chatItem.innerHTML = `
+              <svg class="project-nested-chat-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span class="project-nested-chat-title" title="${escapeHtml(turn.text)}">${idx === 0 ? 'Initial: ' : 'Iteration: '}${escapeHtml(turn.text)}</span>
+            `;
+
+            chatItem.addEventListener('click', (e) => {
+              e.stopPropagation();
+              loadSandboxFromHistory(app.id);
+              switchSandboxSubTab('chat');
+              closeSidebarIfMobile();
+            });
+
+            chatsContainer.appendChild(chatItem);
+          });
+        }
+
+        // Action row to add a new prompt / iteration
+        const addIterRow = document.createElement('div');
+        addIterRow.className = 'project-nested-chat';
+        addIterRow.style.color = 'var(--accent-color)';
+        addIterRow.style.fontWeight = '500';
+        addIterRow.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span class="project-nested-chat-title">+ Add iteration / prompt</span>
+        `;
+        addIterRow.addEventListener('click', (e) => {
+          e.stopPropagation();
+          loadSandboxFromHistory(app.id);
+          switchSandboxSubTab('chat');
+          if (sandboxChatInput) {
+            sandboxChatInput.focus();
+          }
+          closeSidebarIfMobile();
+        });
+        chatsContainer.appendChild(addIterRow);
+
+        group.appendChild(chatsContainer);
+      }
+
+      sidebarSandboxList.appendChild(group);
+    });
+  }
+
+  async function syncSandboxHistoryFromCloud() {
+    if (typeof puter !== 'undefined' && puter.auth?.isSignedIn() && puter.kv) {
+      try {
+        const cloudData = await puter.kv.get(SANDBOX_HISTORY_STORAGE_KEY);
+        if (cloudData) {
+          const parsed = typeof cloudData === 'string' ? JSON.parse(cloudData) : cloudData;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const local = getSandboxHistory();
+            const map = new Map();
+            [...parsed, ...local].forEach(item => {
+              if (!item || !item.id) return;
+              const existing = map.get(item.id);
+              if (!existing || (item.updatedAt || item.createdAt || 0) > (existing.updatedAt || existing.createdAt || 0)) {
+                map.set(item.id, item);
+              }
+            });
+            const merged = Array.from(map.values()).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+            localStorage.setItem(SANDBOX_HISTORY_STORAGE_KEY, JSON.stringify(merged));
+            renderSandboxHistoryBadge();
+            renderSandboxRecentBuilds();
+            renderSidebarSandboxAppsList();
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to sync sandbox history from cloud:', e);
+      }
+    }
   }
 
   function renderSandboxHistoryBadge() {
@@ -7972,6 +8325,18 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
   // --- Wire Sandbox Studio Event Listeners ---
   if (btnTopbarSandbox) btnTopbarSandbox.addEventListener('click', () => openSandboxStudio());
   if (sidebarBtnSandbox) sidebarBtnSandbox.addEventListener('click', () => openSandboxStudio());
+  if (btnSidebarCreateSandbox) {
+    btnSidebarCreateSandbox.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSandboxStudio();
+      resetSandboxStudio();
+      closeSidebarIfMobile();
+      if (sandboxInitialPrompt) {
+        sandboxInitialPrompt.focus();
+      }
+      showToast('Started new Web App Sandbox');
+    });
+  }
   if (btnSandboxStudioBack) btnSandboxStudioBack.addEventListener('click', closeSandboxStudio);
 
   if (tabBtnSandboxChat) tabBtnSandboxChat.addEventListener('click', () => switchSandboxSubTab('chat'));

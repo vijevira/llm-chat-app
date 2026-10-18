@@ -305,6 +305,38 @@ body {
   flex-direction: column;
   gap: 0.15rem;
   margin-top: 0.2rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* Dedicated Sandbox Apps in Sidebar (Custom Apps style) */
+.sandbox-sidebar-section .projects-section-title svg {
+  color: #f59e0b;
+}
+
+.sandbox-app-group .project-group-icon {
+  font-size: 0.92rem;
+  color: #f59e0b;
+}
+
+.sandbox-app-group.active > .project-group-header {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  font-weight: 600;
+}
+
+.sandbox-app-group.active .project-nav-badge {
+  background-color: rgba(245, 158, 11, 0.22);
+  color: #b45309;
+}
+
+.sandbox-app-group .project-group-chats {
+  border-left-color: rgba(245, 158, 11, 0.35);
+}
+
+.sandbox-app-group .project-nested-chat.active {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #d97706;
 }
 
 .projects-empty-hint {

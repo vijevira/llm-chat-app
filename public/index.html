@@ -70,7 +70,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Google+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=1.2.2">
+  <link rel="stylesheet" href="style.css?v=1.2.3">
   
   <!-- Highlight.js for code syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -213,6 +213,25 @@
         </div>
         <div class="projects-list" id="projects-list">
           <!-- Dynamically populated projects list -->
+        </div>
+      </div>
+
+      <!-- Sandbox Web Apps Section (History like Custom Apps) -->
+      <div class="projects-section sandbox-sidebar-section" id="sandbox-sidebar-section">
+        <div class="projects-section-header">
+          <div class="projects-section-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>Sandbox Apps</span>
+            <span class="project-nav-badge" id="sidebar-sandbox-count-badge" style="display: none;">0</span>
+          </div>
+          <div class="projects-header-actions" style="display:flex;align-items:center;gap:4px;">
+            <button class="icon-btn-xs" id="btn-sidebar-create-sandbox" title="New Web App Sandbox" aria-label="New Web App Sandbox">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="projects-list" id="sidebar-sandbox-list">
+          <!-- Populated dynamically with built sandbox apps -->
         </div>
       </div>
 
@@ -1548,6 +1567,6 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Main Chat Logic -->
-  <script src="chat.js?v=1.2.2"></script>
+  <script src="chat.js?v=1.2.3"></script>
 </body>
 </html>
