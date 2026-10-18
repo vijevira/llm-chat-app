@@ -41,13 +41,27 @@ export function initModalTabs() {
 }
 
 export function initModalGlobalDismissal(handlers = {}) {
-  // Backdrop overlay click
+  // Backdrop overlay click and close button dismissals
   document.addEventListener('click', (e) => {
     if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
       if (e.target.id === 'sandbox-export-modal' && typeof handlers.closeSandboxExport === 'function') {
         handlers.closeSandboxExport();
       } else {
         closeModal(e.target);
+      }
+      return;
+    }
+
+    // Close and cancel buttons inside any modal
+    const closeBtn = e.target.closest('[id^="btn-close-"], [id^="btn-cancel-"], .btn-close-modal, [data-dismiss="modal"]');
+    if (closeBtn) {
+      const modal = closeBtn.closest('.modal-overlay');
+      if (modal) {
+        if (modal.id === 'sandbox-export-modal' && typeof handlers.closeSandboxExport === 'function') {
+          handlers.closeSandboxExport();
+        } else {
+          closeModal(modal);
+        }
       }
     }
   });

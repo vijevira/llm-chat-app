@@ -839,6 +839,32 @@
               <button type="button" class="sandbox-toggle-pill" data-pane="right">Live Preview</button>
             </div>
 
+            <!-- View Mode Switcher (Split, Code Only, Preview Only) -->
+            <div class="sandbox-viewmode-toggle" id="sandbox-viewmode-toggle" role="group" aria-label="Layout view mode">
+              <button class="sandbox-vm-btn active" id="btn-sandbox-vm-split" type="button" data-mode="split" title="Split View (Code 58% | Preview 42%)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="13" y1="3" x2="13" y2="21"/>
+                </svg>
+                <span>Split</span>
+              </button>
+              <button class="sandbox-vm-btn" id="btn-sandbox-vm-code" type="button" data-mode="code" title="Codebase Focus (100% Code)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="16 18 22 12 16 6"/>
+                  <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                <span>Code</span>
+              </button>
+              <button class="sandbox-vm-btn" id="btn-sandbox-vm-preview" type="button" data-mode="preview" title="Live Preview Focus (100% Preview)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <span>Preview</span>
+              </button>
+            </div>
+
             <!-- Viewport Switcher -->
             <div class="artifacts-viewport-toggle">
               <button class="artifacts-vp-btn active" id="btn-sandbox-vp-desktop" type="button" title="Desktop View (100%)">
@@ -918,6 +944,8 @@
               <button type="button" class="starter-chip" data-template="dashboard">📊 Tailwind Stats</button>
               <button type="button" class="starter-chip" data-template="kanban">📝 Kanban Board</button>
               <button type="button" class="starter-chip" data-template="pomodoro">⏱️ Focus Timer</button>
+              <button type="button" class="starter-chip" data-template="markdown">📄 Markdown Notes</button>
+              <button type="button" class="starter-chip" data-template="drum">🥁 Drum Machine</button>
             </div>
           </div>
         </div>
@@ -934,7 +962,7 @@
         </div>
 
         <!-- Studio Content Grid: Left Part (Chat & Codebase) | Right Part (Live Preview) -->
-        <div class="sandbox-content-grid">
+        <div class="sandbox-content-grid" id="sandbox-content-grid">
           <!-- Part 1: Left Column (Chat & Codebase) -->
           <div class="sandbox-left-column" id="sandbox-left-column">
             <!-- Sub-tab navigation: AI Chat vs Codebase -->
@@ -945,8 +973,8 @@
               </button>
               <button type="button" class="sandbox-tab-btn" id="tab-btn-sandbox-code" data-tab="code">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                <span>Codebase & Files</span>
-                <span class="sandbox-file-count-badge" id="sandbox-file-count-badge">0 files</span>
+                <span>VS Code IDE</span>
+                <span class="sandbox-file-count-badge" id="sandbox-file-count-badge">4 files</span>
               </button>
             </div>
 
@@ -968,12 +996,12 @@
                   <div class="sandbox-inspiration-section">
                     <span class="sandbox-inspiration-label">Need inspiration? Try:</span>
                     <div class="sandbox-prompt-chips">
-                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a sleek retro Breakout brick-breaker arcade game with canvas graphics, score, and lives">🎮 Breakout Arcade</button>
-                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a modern Pomodoro Focus Timer with circular progress ring, audio chimes, and session task list">⏱️ Pomodoro Timer</button>
-                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build an Agile Kanban Board with draggable cards, priority badges, and persistent localStorage">📋 Kanban Workspace</button>
-                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a SaaS Executive Financial Dashboard with KPI counters, chart visualization, and dark mode">📊 Financial Dashboard</button>
-                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build a complete Markdown Note-taking app with live preview, word count, and download button">📝 Markdown Notes</button>
-                      <button type="button" class="sandbox-prompt-chip" data-prompt="Build an interactive Audio Drum Pad synthesizer with keyboard triggers and visual beats">🥁 Drum Machine</button>
+                      <button type="button" class="sandbox-prompt-chip" data-template="arcade" data-prompt="Build a sleek retro Breakout brick-breaker arcade game with canvas graphics, score, and lives">🎮 Breakout Arcade</button>
+                      <button type="button" class="sandbox-prompt-chip" data-template="pomodoro" data-prompt="Build a modern Pomodoro Focus Timer with circular progress ring, audio chimes, and session task list">⏱️ Pomodoro Timer</button>
+                      <button type="button" class="sandbox-prompt-chip" data-template="kanban" data-prompt="Build an Agile Kanban Board with draggable cards, priority badges, and persistent localStorage">📋 Kanban Workspace</button>
+                      <button type="button" class="sandbox-prompt-chip" data-template="dashboard" data-prompt="Build a SaaS Executive Financial Dashboard with KPI counters, chart visualization, and dark mode">📊 Financial Dashboard</button>
+                      <button type="button" class="sandbox-prompt-chip" data-template="markdown" data-prompt="Build a complete Markdown Note-taking app with live preview, word count, and download button">📝 Markdown Notes</button>
+                      <button type="button" class="sandbox-prompt-chip" data-template="drum" data-prompt="Build an interactive Audio Drum Pad synthesizer with keyboard triggers and visual beats">🥁 Drum Machine</button>
                     </div>
                   </div>
 
@@ -1004,11 +1032,15 @@
                 <div class="sandbox-bottom-iteration">
                   <div class="sandbox-iteration-wrap">
                     <span class="artifacts-prompt-sparkle">✨</span>
-                    <input type="text" class="sandbox-iteration-input" id="sandbox-iteration-input" placeholder="Ask AI to modify, restyle, or add features (e.g. 'Add dark mode', 'Add high score counter')..." />
-                    <button class="btn-primary btn-sm" id="btn-sandbox-iteration-submit" type="button">
+                    <textarea class="sandbox-iteration-textarea" id="sandbox-iteration-input" rows="1" placeholder="Ask AI to fix issues, restyle, or add features (Shift+Enter for newline, Enter to send)..."></textarea>
+                    <button class="btn-primary btn-sm sandbox-btn-submit-iter" id="btn-sandbox-iteration-submit" type="button" title="Send update (Enter)">
                       <span>Update</span>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                     </button>
+                  </div>
+                  <div class="sandbox-iteration-hints-row">
+                    <span class="sandbox-hint-text">Enter to send • Shift+Enter for new line</span>
+                    <button type="button" class="btn-link-xs" id="btn-sandbox-undo-revision" style="display: none;" title="Rollback to previous version">↺ Rollback last change</button>
                   </div>
                   <div class="sandbox-status-indicator" id="sandbox-status-indicator" style="display: none;">
                     <span class="spinner-sm"></span>
@@ -1018,40 +1050,134 @@
               </div>
             </div>
 
-            <!-- TAB 2: Codebase & Files View (Interactive Manual Code Editor) -->
+            <!-- TAB 2: VS Code IDE Codebase View -->
             <div class="sandbox-tab-pane" id="sandbox-pane-code" style="display: none;">
-              <div class="sandbox-code-header">
-                <div class="sandbox-code-file-tabs" id="sandbox-code-file-tabs">
-                  <button type="button" class="code-file-tab active" data-file="all">📦 All-in-One Code</button>
-                  <button type="button" class="code-file-tab" data-file="html">📄 index.html</button>
-                  <button type="button" class="code-file-tab" data-file="css">🎨 style.css</button>
-                  <button type="button" class="code-file-tab" data-file="js">⚡ script.js</button>
+              <div class="vscode-ide-layout">
+                <!-- VS Code Activity Bar & File Explorer Sidebar -->
+                <div class="vscode-sidebar" id="vscode-sidebar">
+                  <div class="vscode-sidebar-header">
+                    <div class="vscode-sidebar-title">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      <span>EXPLORER</span>
+                    </div>
+                    <div class="vscode-sidebar-actions">
+                      <button type="button" class="vscode-icon-btn" id="btn-vscode-toggle-sidebar" title="Toggle Sidebar">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- VS Code File Tree -->
+                  <div class="vscode-tree-container" id="vscode-tree-container">
+                    <div class="vscode-tree-group">
+                      <div class="vscode-tree-folder open" id="vscode-folder-src">
+                        <svg class="vscode-chevron-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                        <span class="vscode-folder-icon">📁</span>
+                        <span class="vscode-folder-name">src</span>
+                      </div>
+                      <div class="vscode-tree-children" id="vscode-children-src">
+                        <div class="vscode-tree-item active" data-file="index.html" title="index.html">
+                          <span class="vscode-file-icon file-icon-html">&lt;/&gt;</span>
+                          <span class="vscode-file-label">index.html</span>
+                          <span class="vscode-dirty-dot" data-file="index.html" style="display:none;">●</span>
+                        </div>
+                        <div class="vscode-tree-item" data-file="style.css" title="style.css">
+                          <span class="vscode-file-icon file-icon-css">#</span>
+                          <span class="vscode-file-label">style.css</span>
+                          <span class="vscode-dirty-dot" data-file="style.css" style="display:none;">●</span>
+                        </div>
+                        <div class="vscode-tree-item" data-file="script.js" title="script.js">
+                          <span class="vscode-file-icon file-icon-js">JS</span>
+                          <span class="vscode-file-label">script.js</span>
+                          <span class="vscode-dirty-dot" data-file="script.js" style="display:none;">●</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="vscode-tree-item" data-file="README.md" title="README.md">
+                      <span class="vscode-file-icon file-icon-md">📝</span>
+                      <span class="vscode-file-label">README.md</span>
+                      <span class="vscode-dirty-dot" data-file="README.md" style="display:none;">●</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="sandbox-code-actions">
-                  <span class="sandbox-editor-status" id="sandbox-editor-status">Ready</span>
-                  <span class="sandbox-code-stats" id="sandbox-code-stats">0 lines</span>
-                  <button class="btn-primary btn-xs" id="btn-sandbox-run-code" type="button" title="Apply code changes and run live in preview (Ctrl+S / ⌘S)">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    <span>Run Live</span>
-                  </button>
-                  <button class="icon-btn-xs" id="btn-sandbox-revert-code" type="button" title="Revert manual edits">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                    <span>Revert</span>
-                  </button>
-                  <button class="icon-btn-xs" id="btn-sandbox-copy-code" type="button" title="Copy active code">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    <span>Copy</span>
-                  </button>
-                  <button class="icon-btn-xs" id="btn-sandbox-code-export" type="button" title="Export codebase (ZIP, HTML, CodePen)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span>Export</span>
-                  </button>
-                </div>
-              </div>
-              <div class="sandbox-code-body">
-                <div class="sandbox-editor-wrapper">
-                  <div class="sandbox-editor-gutter" id="sandbox-editor-gutter">1</div>
-                  <textarea class="sandbox-code-editor" id="sandbox-code-editor" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="// Type or paste your code here..."></textarea>
+
+                <!-- VS Code Main Editor Area -->
+                <div class="vscode-main-area">
+                  <!-- VS Code Tabs Bar -->
+                  <div class="vscode-tabs-bar">
+                    <div class="vscode-tabs-scroll" id="vscode-tabs-container">
+                      <button type="button" class="vscode-tab active" data-file="index.html">
+                        <span class="vscode-tab-icon file-icon-html">&lt;/&gt;</span>
+                        <span class="vscode-tab-title">index.html</span>
+                        <span class="vscode-tab-dirty" data-file="index.html" style="display:none;">●</span>
+                      </button>
+                      <button type="button" class="vscode-tab" data-file="style.css">
+                        <span class="vscode-tab-icon file-icon-css">#</span>
+                        <span class="vscode-tab-title">style.css</span>
+                        <span class="vscode-tab-dirty" data-file="style.css" style="display:none;">●</span>
+                      </button>
+                      <button type="button" class="vscode-tab" data-file="script.js">
+                        <span class="vscode-tab-icon file-icon-js">JS</span>
+                        <span class="vscode-tab-title">script.js</span>
+                        <span class="vscode-tab-dirty" data-file="script.js" style="display:none;">●</span>
+                      </button>
+                      <button type="button" class="vscode-tab" data-file="README.md">
+                        <span class="vscode-tab-icon file-icon-md">📝</span>
+                        <span class="vscode-tab-title">README.md</span>
+                        <span class="vscode-tab-dirty" data-file="README.md" style="display:none;">●</span>
+                      </button>
+                    </div>
+
+                    <!-- VS Code Top Actions -->
+                    <div class="vscode-tabs-actions">
+                      <button class="vscode-btn-save-run" id="btn-sandbox-run-code" type="button" title="Save and Hot-Reload Live Preview (Ctrl+S / ⌘S)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <span>Save & Run</span>
+                        <kbd class="vscode-kbd">⌘S</kbd>
+                      </button>
+                      <button class="icon-btn-xs" id="btn-sandbox-revert-code" type="button" title="Revert edits to generated version">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        <span>Revert</span>
+                      </button>
+                      <button class="icon-btn-xs" id="btn-sandbox-copy-code" type="button" title="Copy active file code">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>Copy</span>
+                      </button>
+                      <button class="icon-btn-xs" id="btn-sandbox-code-export" type="button" title="Export project bundle (ZIP, HTML)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Export</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- VS Code Breadcrumbs Bar -->
+                  <div class="vscode-breadcrumbs">
+                    <span class="vscode-bc-item">src</span>
+                    <span class="vscode-bc-sep">›</span>
+                    <span class="vscode-bc-item active" id="vscode-bc-current-file">index.html</span>
+                  </div>
+
+                  <!-- VS Code Editor Body -->
+                  <div class="vscode-editor-body">
+                    <div class="sandbox-editor-wrapper">
+                      <div class="sandbox-editor-gutter" id="sandbox-editor-gutter">1</div>
+                      <textarea class="sandbox-code-editor" id="sandbox-code-editor" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="// Type or paste your code here..."></textarea>
+                    </div>
+                  </div>
+
+                  <!-- VS Code Status Bar -->
+                  <div class="vscode-statusbar">
+                    <div class="vscode-status-left">
+                      <span class="vscode-status-item" id="vscode-status-cursor">Ln 1, Col 1</span>
+                      <span class="vscode-status-item">Spaces: 2</span>
+                      <span class="vscode-status-item">UTF-8</span>
+                    </div>
+                    <div class="vscode-status-right">
+                      <span class="vscode-status-item vscode-status-save" id="sandbox-editor-status">✓ Saved</span>
+                      <span class="vscode-status-item" id="sandbox-code-stats">0 lines</span>
+                      <span class="vscode-status-item vscode-status-lang" id="vscode-status-lang">HTML</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1071,11 +1197,79 @@
                 </svg>
               </div>
               <h4 class="sandbox-standby-title">Interactive Live Preview</h4>
-              <p class="sandbox-standby-desc">Describe your web app idea on the left and click <strong>Build Web App</strong>. The live, interactive application will compile and render right here.</p>
+              <p class="sandbox-standby-desc">Describe your web app idea on the left or select a template. The live, interactive application will compile and render right here.</p>
+            </div>
+
+            <!-- ChatGPT/Gemini-Style Live Generative Progress Canvas (Overlay when building) -->
+            <div class="sandbox-builder-overlay" id="sandbox-builder-overlay" style="display: none;">
+              <div class="sandbox-builder-card">
+                <div class="builder-card-sparkle-glow">
+                  <svg class="builder-sparkle-svg" viewBox="0 0 24 24" width="28" height="28">
+                    <path fill="url(#geminiSparkleGrad)" d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+                  </svg>
+                </div>
+                <div class="builder-card-title" id="sandbox-builder-title">Architecting Web Application...</div>
+                <div class="builder-card-prompt" id="sandbox-builder-prompt">"Build an interactive web app"</div>
+
+                <!-- Animated Step-by-Step Progress Pipeline -->
+                <div class="builder-steps-list">
+                  <div class="builder-step-row active" id="bstep-1">
+                    <div class="builder-step-indicator"><span class="step-spinner"></span><span class="step-check">✓</span></div>
+                    <div class="builder-step-text">Analyzing requirements & app architecture</div>
+                  </div>
+                  <div class="builder-step-row" id="bstep-2">
+                    <div class="builder-step-indicator"><span class="step-spinner"></span><span class="step-check">✓</span></div>
+                    <div class="builder-step-text">Generating markup skeleton (<code class="builder-code-pill">index.html</code>)</div>
+                  </div>
+                  <div class="builder-step-row" id="bstep-3">
+                    <div class="builder-step-indicator"><span class="step-spinner"></span><span class="step-check">✓</span></div>
+                    <div class="builder-step-text">Synthesizing modern styles & responsive theme (<code class="builder-code-pill">style.css</code>)</div>
+                  </div>
+                  <div class="builder-step-row" id="bstep-4">
+                    <div class="builder-step-indicator"><span class="step-spinner"></span><span class="step-check">✓</span></div>
+                    <div class="builder-step-text">Hooking state machine & interactive logic (<code class="builder-code-pill">script.js</code>)</div>
+                  </div>
+                  <div class="builder-step-row" id="bstep-5">
+                    <div class="builder-step-indicator"><span class="step-spinner"></span><span class="step-check">✓</span></div>
+                    <div class="builder-step-text">Compiling sandbox & mounting DOM runtime</div>
+                  </div>
+                </div>
+
+                <!-- Live Stream Terminal Preview Ticker -->
+                <div class="builder-stream-terminal">
+                  <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                    <span class="terminal-title" id="builder-terminal-stats">Stream active • 0 bytes</span>
+                  </div>
+                  <pre class="terminal-body" id="builder-terminal-body">// Initializing neural code synthesizer...</pre>
+                </div>
+              </div>
             </div>
 
             <!-- Active Preview Frame Container -->
             <div class="sandbox-preview-frame-wrap" id="sandbox-preview-frame-wrap" style="display: none;">
+              <!-- Mini Browser Navigation Bar on top of preview -->
+              <div class="sandbox-browser-bar">
+                <div class="browser-bar-dots">
+                  <span class="browser-dot"></span>
+                  <span class="browser-dot"></span>
+                  <span class="browser-dot"></span>
+                </div>
+                <div class="browser-bar-url" id="sandbox-browser-url">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span id="sandbox-url-text">https://sandbox.internal/app/</span>
+                </div>
+                <div class="browser-bar-actions">
+                  <button type="button" class="browser-action-btn" id="btn-browser-reload" title="Reload App">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  </button>
+                  <button type="button" class="browser-action-btn" id="btn-browser-newtab" title="Open in New Tab">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </button>
+                </div>
+              </div>
               <iframe id="sandbox-studio-iframe" class="sandbox-studio-iframe" sandbox="allow-scripts allow-forms allow-modals allow-same-origin allow-popups"></iframe>
             </div>
           </div>

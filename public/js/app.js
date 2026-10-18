@@ -144,10 +144,15 @@ function initSidebar() {
 function initModelPicker() {
   const btnPicker = document.getElementById('btn-model-picker');
   const modal = document.getElementById('model-modal');
-  const listEl = document.getElementById('models-list');
+  const btnClose = document.getElementById('btn-close-model-modal');
+  const btnCancel = document.getElementById('btn-cancel-model-modal');
+  const listEl = document.getElementById('models-list-container');
   const searchInput = document.getElementById('model-search-input');
+  const providerPillsBar = document.getElementById('provider-pills-bar');
   const selectedName = document.getElementById('selected-model-name');
   const selectedProvider = document.getElementById('selected-model-provider');
+
+  let activeProviderFilter = 'all';
 
   const updateHeaderDisplay = () => {
     const m = getModelById(appState.settings.selectedModel);
@@ -157,45 +162,141 @@ function initModelPicker() {
 
   updateHeaderDisplay();
 
-  const renderList = (query = '') => {
+  const filterModels = (query = '', provider = 'all') => {
+    const q = query.toLowerCase().trim();
+    return CURATED_MODELS.filter(m => {
+      // Provider filter
+      if (provider !== 'all') {
+        const pLower = (m.provider || '').toLowerCase();
+        const idLower = (m.id || '').toLowerCase();
+        if (provider === 'google' && !pLower.includes('google') && !idLower.includes('gemini')) return false;
+        if (provider === 'openai' && !pLower.includes('openai') && !idLower.includes('gpt')) return false;
+        if (provider === 'anthropic' && !pLower.includes('anthropic') && !idLower.includes('claude')) return false;
+        if (provider === 'deepseek' && !pLower.includes('deepseek')) return false;
+        if (provider === 'xai' && !pLower.includes('xai') && !idLower.includes('grok')) return false;
+        if (provider === 'meta' && !pLower.includes('meta') && !idLower.includes('llama')) return false;
+        if (provider === 'mistral' && !pLower.includes('mistral')) return false;
+      }
+
+      // Query filter
+      if (q) {
+        return (m.id && m.id.toLowerCase().includes(q)) ||
+               (m.name && m.name.toLowerCase().includes(q)) ||
+               (m.provider && m.provider.toLowerCase().includes(q)) ||
+               (m.description && m.description.toLowerCase().includes(q));
+      }
+      return true;
+    });
+  };
+
+  const renderList = () => {
     if (!listEl) return;
-    const q = query.toLowerCase();
-    const filtered = CURATED_MODELS.filter(m => {
-      return !q || m.name.toLowerCase().includes(q) || m.provider.toLowerCase().includes(q) || (m.description && m.description.toLowerCase().includes(q));
+    const query = searchInput ? searchInput.value : '';
+    const filtered = filterModels(query, activeProviderFilter);
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `
+        <div style="padding: 2.5rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
+          No matching models found. Try another search or provider.
+        </div>
+      `;
+      return;
+    }
+
+    // Group models by Provider
+    const groups = {};
+    filtered.forEach(m => {
+      const prov = m.provider || 'Other';
+      if (!groups[prov]) groups[prov] = [];
+      groups[prov].push(m);
     });
 
-    listEl.innerHTML = filtered.map(m => `
-      <div class="model-item ${m.id === appState.settings.selectedModel ? 'selected' : ''}" data-model-id="${escapeHtml(m.id)}">
-        <div class="model-item-top">
-          <span class="model-item-name">${escapeHtml(m.name)}</span>
-          <span class="model-item-provider ${getProviderBadgeClass(m.provider)}">${escapeHtml(m.provider)}</span>
-        </div>
-        <p class="model-item-desc">${escapeHtml(m.description || '')}</p>
-      </div>
-    `).join('');
+    const providerOrder = ['Google', 'OpenAI', 'Anthropic', 'DeepSeek', 'xAI', 'Meta', 'Mistral'];
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      const idxA = providerOrder.indexOf(a);
+      const idxB = providerOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
 
-    listEl.querySelectorAll('.model-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const id = item.getAttribute('data-model-id');
-        appState.settings.selectedModel = id;
-        saveSettingsToStorage();
-        updateHeaderDisplay();
-        if (modal) closeModal(modal);
-        showToast(`Selected model: ${getModelById(id).name}`);
+    listEl.innerHTML = '';
+    sortedKeys.forEach(prov => {
+      const header = document.createElement('div');
+      header.className = 'model-group-header';
+      header.textContent = `${prov} (${groups[prov].length})`;
+      listEl.appendChild(header);
+
+      groups[prov].forEach(m => {
+        const isSelected = m.id === appState.settings.selectedModel;
+        const item = document.createElement('div');
+        item.className = 'model-option-item' + (isSelected ? ' selected' : '');
+        item.setAttribute('data-model-id', m.id);
+
+        const isReasoning = (m.id.includes('r1') || m.id.includes('reasoning') || m.id.includes('3.7') || m.id.includes('3.8'));
+
+        item.innerHTML = `
+          <div class="model-option-info">
+            <div class="model-option-name">${escapeHtml(m.name)}</div>
+            <div class="model-option-id">${escapeHtml(m.id)}</div>
+          </div>
+          <div class="model-badges-row">
+            ${m.isCurated ? '<span class="badge-featured">Featured</span>' : ''}
+            ${isReasoning ? '<span class="badge-reasoning">Reasoning</span>' : ''}
+            <span class="model-provider-badge">${escapeHtml(m.provider)}</span>
+          </div>
+        `;
+
+        item.addEventListener('click', () => {
+          appState.settings.selectedModel = m.id;
+          saveSettingsToStorage();
+          updateHeaderDisplay();
+          closeModal(modal);
+          showToast(`Switched model to ${m.name}`);
+        });
+
+        listEl.appendChild(item);
       });
     });
   };
 
   if (btnPicker && modal) {
     btnPicker.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      activeProviderFilter = 'all';
+      if (providerPillsBar) {
+        providerPillsBar.querySelectorAll('.provider-pill').forEach(p => {
+          p.classList.toggle('active', p.getAttribute('data-provider') === 'all');
+        });
+      }
       openModal(modal);
-      renderList(searchInput?.value.trim() || '');
+      renderList();
+      setTimeout(() => searchInput?.focus(), 60);
+    });
+  }
+
+  if (btnClose && modal) {
+    btnClose.addEventListener('click', () => closeModal(modal));
+  }
+  if (btnCancel && modal) {
+    btnCancel.addEventListener('click', () => closeModal(modal));
+  }
+
+  if (providerPillsBar) {
+    providerPillsBar.addEventListener('click', (e) => {
+      const pill = e.target.closest('.provider-pill');
+      if (!pill) return;
+      providerPillsBar.querySelectorAll('.provider-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      activeProviderFilter = pill.getAttribute('data-provider') || 'all';
+      renderList();
     });
   }
 
   if (searchInput) {
     searchInput.addEventListener('input', () => {
-      renderList(searchInput.value.trim());
+      renderList();
     });
   }
 }
@@ -203,6 +304,8 @@ function initModelPicker() {
 function initSettingsModal() {
   const btnSettings = document.getElementById('user-profile-bar');
   const modal = document.getElementById('settings-modal');
+  const btnClose = document.getElementById('btn-close-settings-modal');
+  const btnCancel = document.getElementById('btn-cancel-settings-modal');
   const btnSave = document.getElementById('btn-save-settings');
   const promptInput = document.getElementById('setting-system-prompt');
   const tempInput = document.getElementById('setting-temperature');
@@ -215,6 +318,13 @@ function initSettingsModal() {
       if (tempVal) tempVal.textContent = appState.settings.temperature;
       openModal(modal);
     });
+  }
+
+  if (btnClose && modal) {
+    btnClose.addEventListener('click', () => closeModal(modal));
+  }
+  if (btnCancel && modal) {
+    btnCancel.addEventListener('click', () => closeModal(modal));
   }
 
   if (tempInput && tempVal) {

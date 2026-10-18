@@ -80,17 +80,29 @@ export function initChatController() {
 
   if (fileInput) fileInput.addEventListener('change', handleFileInput);
   if (imageInput) imageInput.addEventListener('change', handleImageInput);
+
+  // Starter suggestion cards click listener
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.starter-card');
+    if (!card) return;
+    const prompt = card.getAttribute('data-prompt') || card.querySelector('.starter-card-desc')?.textContent;
+    if (prompt) {
+      sendMessage(prompt);
+    }
+  });
 }
 
-export async function sendMessage() {
+export async function sendMessage(overrideText = null) {
   const textarea = document.getElementById('chat-textarea');
   const btnSend = document.getElementById('btn-send');
   const btnStopStream = document.getElementById('btn-stop-generation');
   const messagesContainer = document.getElementById('messages-container');
   const welcomeView = document.getElementById('welcome-container');
 
-  if (!textarea) return;
-  const text = textarea.value.trim();
+  const text = (typeof overrideText === 'string' && overrideText.trim())
+    ? overrideText.trim()
+    : (textarea ? textarea.value.trim() : '');
+
   if (!text || appState.activeAbortController) return;
 
   const session = appState.sessions.find(s => s.id === appState.currentSessionId);
@@ -104,8 +116,10 @@ export async function sendMessage() {
   };
   session.messages.push(userMsg);
 
-  textarea.value = '';
-  textarea.style.height = 'auto';
+  if (textarea) {
+    textarea.value = '';
+    textarea.style.height = 'auto';
+  }
   if (btnSend) btnSend.disabled = true;
 
   if (welcomeView) welcomeView.style.display = 'none';

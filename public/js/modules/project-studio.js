@@ -185,7 +185,8 @@ export function renderProjectsList() {
       </button>
     `;
 
-    item.querySelector('.project-item-left').addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.project-item-edit-btn')) return;
       selectProject(project.id);
     });
 

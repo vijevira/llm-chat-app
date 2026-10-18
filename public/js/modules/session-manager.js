@@ -190,8 +190,8 @@ export function renderSessionList() {
       </div>
     `;
 
-    item.querySelector('.chat-item-main').addEventListener('click', () => {
-      if (item.classList.contains('editing')) return;
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.chat-item-actions') || item.classList.contains('editing')) return;
       switchSession(session.id);
     });
 

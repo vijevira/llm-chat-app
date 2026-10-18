@@ -288,6 +288,190 @@ export const STARTER_TEMPLATES = {
     }
   </script>
 </body>
+</html>`,
+
+  markdown: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Markdown Workspace</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    header { background: #1e293b; padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+    .title { font-weight: 700; font-size: 1.1rem; color: #38bdf8; display: flex; align-items: center; gap: 0.5rem; }
+    .stats { font-size: 0.8rem; color: #94a3b8; }
+    .btn-export { background: #0284c7; color: #fff; border: none; padding: 0.4rem 0.85rem; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; }
+    .container { flex: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+    .pane { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+    .pane-header { background: #1e293b; padding: 0.4rem 0.75rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; border-bottom: 1px solid #334155; }
+    textarea { flex: 1; background: #0b1120; color: #e2e8f0; border: none; outline: none; padding: 1rem; font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; font-size: 0.9rem; line-height: 1.6; resize: none; border-right: 1px solid #334155; }
+    .preview { flex: 1; background: #0f172a; padding: 1.5rem; overflow-y: auto; line-height: 1.6; color: #cbd5e1; }
+    .preview h1 { color: #f8fafc; font-size: 1.6rem; margin-bottom: 0.75rem; border-bottom: 1px solid #334155; padding-bottom: 0.4rem; }
+    .preview h2 { color: #38bdf8; font-size: 1.3rem; margin: 1.25rem 0 0.5rem 0; }
+    .preview p { margin-bottom: 0.85rem; }
+    .preview ul { margin-left: 1.5rem; margin-bottom: 0.85rem; }
+    .preview code { background: #1e293b; padding: 0.2rem 0.4rem; border-radius: 4px; color: #f43f5e; font-size: 0.85em; }
+    .preview pre { background: #1e293b; padding: 1rem; border-radius: 6px; overflow-x: auto; margin-bottom: 0.85rem; }
+    .preview blockquote { border-left: 3px solid #38bdf8; padding-left: 0.75rem; color: #94a3b8; font-style: italic; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title"><span>📝</span> Markdown Notes Workspace</div>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <span class="stats" id="stats">0 words • 0 characters</span>
+      <button class="btn-export" onclick="downloadMd()">Download .md</button>
+    </div>
+  </header>
+  <div class="container">
+    <div class="pane">
+      <div class="pane-header">Markdown Input</div>
+      <textarea id="editor" placeholder="# Write your thoughts here..."># 🚀 Markdown Notes App
+
+Welcome to your instant, distraction-free markdown note-taking environment.
+
+## Key Features
+- **Real-time Live Preview**: Types directly into the preview pane
+- **Word & Character Counters**: Automatically tracked in the topbar
+- **1-Click Download**: Saves cleanly to your hard drive
+
+### Quick Guide
+- Use **bold** and *italic* text formatting
+- Use # for main headers, ## for subheadings
+- Type - for instant bullet lists
+
+> "Simplicity is the soul of efficiency."
+</textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-header">Live Rendered Document</div>
+      <div class="preview" id="preview"></div>
+    </div>
+  </div>
+  <script>
+    const editor = document.getElementById("editor");
+    const preview = document.getElementById("preview");
+    const stats = document.getElementById("stats");
+    function render() {
+      const text = editor.value;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      stats.textContent = words + " words • " + text.length + " characters";
+      let html = text
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
+        .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+        .replace(new RegExp('\\x60\\x60\\x60([\\s\\S]*?)\\x60\\x60\\x60', 'gim'), '<pre><code>$1</code></pre>')
+        .replace(new RegExp('\\x60([^\\x60]+)\\x60', 'gim'), '<code>$1</code>')
+        .replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>')
+        .replace(/\n\n/gim, '<p></p>')
+        .replace(/\n/gim, '<br/>');
+      preview.innerHTML = html;
+    }
+    function downloadMd() {
+      const blob = new Blob([editor.value], { type: 'text/markdown' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'notes.md';
+      a.click();
+    }
+    editor.addEventListener('input', render);
+    render();
+  </script>
+</body>
+</html>`,
+
+  drum: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Beat Synthesizer & Drum Pad</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0b10; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; user-select: none; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.35rem; color: #a855f7; display: flex; align-items: center; gap: 0.5rem; }
+    .subtitle { font-size: 0.85rem; color: #71717a; margin-bottom: 1.5rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, 110px); gap: 1rem; margin-bottom: 1.5rem; }
+    .pad { width: 110px; height: 110px; background: #18181b; border: 2px solid #27272a; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.08s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    .pad:hover { border-color: #a855f7; transform: translateY(-2px); }
+    .pad:active, .pad.active { transform: scale(0.94); border-color: #ec4899; box-shadow: 0 0 25px rgba(236,72,153,0.6); background: #27272a; }
+    .pad-key { font-size: 1.4rem; font-weight: 800; color: #f4f4f5; }
+    .pad-name { font-size: 0.72rem; text-transform: uppercase; color: #a1a1aa; margin-top: 4px; font-weight: 600; letter-spacing: 0.05em; }
+    .footer-note { font-size: 0.8rem; color: #52525b; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1><span>🥁</span> Studio Drum Machine</h1>
+  <p class="subtitle">Press corresponding keys on your keyboard or tap pads</p>
+  <div class="grid">
+    <div class="pad" data-key="q" data-sound="kick"><span class="pad-key">Q</span><span class="pad-name">Kick</span></div>
+    <div class="pad" data-key="w" data-sound="snare"><span class="pad-key">W</span><span class="pad-name">Snare</span></div>
+    <div class="pad" data-key="e" data-sound="hihat"><span class="pad-key">E</span><span class="pad-name">Hi-Hat</span></div>
+    <div class="pad" data-key="a" data-sound="clap"><span class="pad-key">A</span><span class="pad-name">Clap</span></div>
+    <div class="pad" data-key="s" data-sound="tom"><span class="pad-key">S</span><span class="pad-name">Tom</span></div>
+    <div class="pad" data-key="d" data-sound="crash"><span class="pad-key">D</span><span class="pad-name">Crash</span></div>
+    <div class="pad" data-key="z" data-sound="perc"><span class="pad-key">Z</span><span class="pad-name">Perc</span></div>
+    <div class="pad" data-key="x" data-sound="sub"><span class="pad-key">X</span><span class="pad-name">Sub 808</span></div>
+    <div class="pad" data-key="c" data-sound="synth"><span class="pad-key">C</span><span class="pad-name">Laser</span></div>
+  </div>
+  <p class="footer-note">Powered by Web Audio API • 100% Client-Side Synthesis</p>
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      if (type === 'kick' || type === 'sub') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(type === 'sub' ? 90 : 150, now);
+        osc.frequency.exponentialRampToValueAtTime(0.01, now + (type === 'sub' ? 0.8 : 0.4));
+        gain.gain.setValueAtTime(1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + (type === 'sub' ? 0.8 : 0.4));
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + (type === 'sub' ? 0.8 : 0.4));
+      } else if (type === 'snare' || type === 'clap' || type === 'crash' || type === 'hihat') {
+        const bufferSize = audioCtx.sampleRate * (type === 'crash' ? 0.6 : 0.15);
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(type === 'hihat' ? 0.3 : 0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + (type === 'crash' ? 0.6 : 0.15));
+        noise.connect(gain); gain.connect(audioCtx.destination);
+        noise.start(now);
+      } else {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type === 'synth' ? 'sawtooth' : 'sine';
+        osc.frequency.setValueAtTime(type === 'synth' ? 880 : 330, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.25);
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.25);
+      }
+    }
+    function trigger(pad) {
+      if (!pad) return;
+      pad.classList.add('active');
+      setTimeout(() => pad.classList.remove('active'), 120);
+      playSound(pad.getAttribute('data-sound'));
+    }
+    document.querySelectorAll('.pad').forEach(p => {
+      p.addEventListener('mousedown', () => trigger(p));
+    });
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      const pad = document.querySelector(\`.pad[data-key="\${key}"]\`);
+      if (pad) trigger(pad);
+    });
+  </script>
+</body>
 </html>`
 };
 

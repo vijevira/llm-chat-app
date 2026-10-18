@@ -118,7 +118,9 @@ export function initArtifactsPane() {
         arcade: '🎮 Retro Arcade (Breakout)',
         dashboard: '📊 SaaS Executive Dashboard',
         kanban: '📋 Kanban Workspace',
-        pomodoro: '⏱️ Focus Pomodoro'
+        pomodoro: '⏱️ Focus Pomodoro',
+        markdown: '📝 Markdown Notes Workspace',
+        drum: '🥁 Studio Drum Machine'
       };
       openArtifact(titles[tplKey] || 'Template App', STARTER_TEMPLATES[tplKey], 'html');
       if (githubPanel) githubPanel.style.display = 'none';
