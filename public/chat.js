@@ -1471,6 +1471,9 @@
 
   function createNewSessionForProject(projectId) {
     if (!projectId) return;
+    if (sandboxStudioView && sandboxStudioView.style.display !== 'none') {
+      closeSandboxStudio();
+    }
     const proj = projects.find(p => p.id === projectId);
     if (!proj) return;
     activeProjectId = projectId;
@@ -1782,6 +1785,7 @@
   function openProjectStudio(projectId = null) {
     editingProjectId = projectId;
     updateProjectModelOptions();
+    closeSidebarIfMobile();
 
     // In-window transition: hide chat view and display studio view
     if (chatTopbar) chatTopbar.style.display = 'none';
@@ -3282,9 +3286,11 @@
         }
       }
 
-      const origBtnHtml = btnPublishArtifact.innerHTML;
-      btnPublishArtifact.disabled = true;
-      btnPublishArtifact.innerHTML = `<span class="spinner-small" style="width:12px;height:12px;display:inline-block;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span> Publishing...`;
+      const origBtnHtml = btnPublishArtifact ? btnPublishArtifact.innerHTML : '';
+      if (btnPublishArtifact) {
+        btnPublishArtifact.disabled = true;
+        btnPublishArtifact.innerHTML = `<span class="spinner-small" style="width:12px;height:12px;display:inline-block;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span> Publishing...`;
+      }
 
       showToast('Publishing live app to Puter Cloud hosting...');
 
@@ -3316,19 +3322,23 @@
 
       showToast(`🎉 App live at ${publishedUrl}!`, 5000);
 
-      btnPublishArtifact.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Published`;
-      setTimeout(() => {
-        btnPublishArtifact.disabled = false;
-        btnPublishArtifact.innerHTML = origBtnHtml;
-      }, 3000);
+      if (btnPublishArtifact) {
+        btnPublishArtifact.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Published`;
+        setTimeout(() => {
+          btnPublishArtifact.disabled = false;
+          btnPublishArtifact.innerHTML = origBtnHtml;
+        }, 3000);
+      }
     } catch (err) {
       console.error('Failed to publish artifact:', err);
       showToast('Failed to publish app: ' + (err.message || 'Unknown error'));
-      btnPublishArtifact.disabled = false;
-      btnPublishArtifact.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-        <span>Publish App</span>
-      `;
+      if (btnPublishArtifact) {
+        btnPublishArtifact.disabled = false;
+        btnPublishArtifact.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          <span>Publish</span>
+        `;
+      }
     }
   }
 
@@ -6251,6 +6261,88 @@ Requirements:
     });
   }
 
+  if (btnArtifactGithub) {
+    btnArtifactGithub.addEventListener('click', () => {
+      if (!artifactsGithubPanel) return;
+      artifactsGithubPanel.style.display = (artifactsGithubPanel.style.display === 'none' || !artifactsGithubPanel.style.display) ? 'block' : 'none';
+    });
+  }
+
+  if (btnCloseGithubPanel) {
+    btnCloseGithubPanel.addEventListener('click', () => {
+      if (artifactsGithubPanel) artifactsGithubPanel.style.display = 'none';
+    });
+  }
+
+  if (btnFetchGithubRepo) {
+    btnFetchGithubRepo.addEventListener('click', async () => {
+      const url = githubRepoInput ? githubRepoInput.value.trim() : '';
+      if (!url) {
+        showToast('Please enter a GitHub repository or raw file URL.');
+        return;
+      }
+      try {
+        let rawUrl = url;
+        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+        if (match && !url.includes('raw.githubusercontent.com')) {
+          rawUrl = `https://raw.githubusercontent.com/${match[1]}/${match[2]}/main/index.html`;
+        }
+        showToast('Fetching code from GitHub...');
+        let res = await fetch(rawUrl);
+        if (!res.ok && match) {
+          res = await fetch(`https://raw.githubusercontent.com/${match[1]}/${match[2]}/master/index.html`);
+        }
+        if (res.ok) {
+          const code = await res.text();
+          currentArtifact = {
+            title: match ? `${match[1]}/${match[2]}` : 'GitHub App',
+            code,
+            lang: 'html',
+            publishedUrl: null
+          };
+          if (artifactsSandboxFrame) {
+            artifactsSandboxFrame.srcdoc = prepareExecutableHtml(code, 'html');
+          }
+          if (artifactsTitle) artifactsTitle.textContent = currentArtifact.title;
+          if (artifactsGithubPanel) artifactsGithubPanel.style.display = 'none';
+          showToast('Imported from GitHub successfully!');
+        } else {
+          showToast('Could not find index.html in repository. Check URL.');
+        }
+      } catch (err) {
+        showToast('Failed to import: ' + err.message);
+      }
+    });
+  }
+
+  // Starter chips inside artifactsGithubPanel
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('#artifacts-github-panel .starter-chip');
+    if (!chip) return;
+    const tplKey = chip.getAttribute('data-template');
+    if (tplKey && STARTER_TEMPLATES[tplKey]) {
+      const titles = {
+        arcade: '🎮 Retro Arcade (Breakout)',
+        dashboard: '📊 SaaS Executive Dashboard',
+        kanban: '📋 Kanban Workspace',
+        pomodoro: '⏱️ Focus Pomodoro'
+      };
+      const code = STARTER_TEMPLATES[tplKey];
+      currentArtifact = {
+        title: titles[tplKey] || 'Template App',
+        code,
+        lang: 'html',
+        publishedUrl: null
+      };
+      if (artifactsSandboxFrame) {
+        artifactsSandboxFrame.srcdoc = prepareExecutableHtml(code, 'html');
+      }
+      if (artifactsTitle) artifactsTitle.textContent = currentArtifact.title;
+      if (artifactsGithubPanel) artifactsGithubPanel.style.display = 'none';
+      showToast(`Loaded ${titles[tplKey]} into preview!`);
+    }
+  });
+
   if (btnArtifactVpDesktop) {
     btnArtifactVpDesktop.addEventListener('click', () => {
       btnArtifactVpDesktop.classList.add('active');
@@ -6540,6 +6632,7 @@ Requirements:
   };
 
   function openSandboxStudio(initialApp = null) {
+    closeSidebarIfMobile();
     if (chatTopbar) chatTopbar.style.display = 'none';
     if (messagesContainer) messagesContainer.style.display = 'none';
     if (inputAreaWrapper) inputAreaWrapper.style.display = 'none';
@@ -6549,6 +6642,8 @@ Requirements:
 
     if (sandboxStudioView) {
       sandboxStudioView.style.display = 'flex';
+      sandboxStudioView.classList.add('mobile-pane-left');
+      sandboxStudioView.classList.remove('mobile-pane-right');
     }
 
     renderSandboxHistoryBadge();
@@ -6569,10 +6664,12 @@ Requirements:
     if (sandboxStudioView) {
       sandboxStudioView.style.display = 'none';
     }
-    if (chatTopbar) chatTopbar.style.display = 'flex';
-    if (messagesContainer) messagesContainer.style.display = 'flex';
-    if (inputAreaWrapper) inputAreaWrapper.style.display = 'block';
+    if (chatTopbar) chatTopbar.style.display = '';
+    if (messagesContainer) messagesContainer.style.display = '';
+    if (inputAreaWrapper) inputAreaWrapper.style.display = '';
+    if (btnScrollBottom) btnScrollBottom.style.display = '';
     renderSidebarSandboxAppsList();
+    renderActiveSession();
   }
 
   function resetSandboxStudio() {
@@ -6630,6 +6727,7 @@ Requirements:
 
   function loadSandboxApp(title, code, prompt = '', existingId = null, existingTurns = null) {
     currentSandboxApp.id = existingId || ('sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+    expandedSandboxIds.add(currentSandboxApp.id);
     currentSandboxApp.title = title || 'Interactive Web Application';
     currentSandboxApp.prompt = prompt || (existingTurns && existingTurns[0]?.text) || '';
     currentSandboxApp.code = code;
@@ -6656,18 +6754,7 @@ Requirements:
   function updateSandboxIframe(code) {
     if (!sandboxStudioIframe) return;
     const execHtml = prepareExecutableHtml(code, 'html');
-
-    // 1. Assign srcdoc
     sandboxStudioIframe.srcdoc = execHtml;
-
-    // 2. Also assign Blob URL for instant rendering across all browser engines
-    try {
-      const blob = new Blob([execHtml], { type: 'text/html;charset=utf-8' });
-      const blobUrl = URL.createObjectURL(blob);
-      sandboxStudioIframe.src = blobUrl;
-    } catch (e) {
-      // Fallback relies on srcdoc
-    }
   }
 
   function renderSandboxStudioState() {
@@ -7929,6 +8016,7 @@ Rules:
 
       // Save state
       currentSandboxApp.id = 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      expandedSandboxIds.add(currentSandboxApp.id);
       currentSandboxApp.title = appTitle;
       currentSandboxApp.prompt = prompt;
       currentSandboxApp.code = generatedCode;
@@ -8276,6 +8364,7 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
         : `https://${subdomain}.puter.site`;
 
       currentSandboxApp.publishedUrl = publishedUrl;
+      saveSandboxAppToHistory(currentSandboxApp);
 
       if (sandboxPublishedBanner && sandboxPublishedLink) {
         sandboxPublishedLink.href = publishedUrl;
@@ -8678,6 +8767,7 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
     renderPluginsMarketplace(activePluginCategory);
   });
   if (sidebarBtnPlugins) sidebarBtnPlugins.addEventListener('click', () => {
+    closeSidebarIfMobile();
     openModal(pluginsModal);
     renderPluginsMarketplace(activePluginCategory);
   });
@@ -8685,12 +8775,7 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
   // Explore Apps modal listeners
   if (sidebarBtnExploreApps) {
     sidebarBtnExploreApps.addEventListener('click', () => {
-      openModal(exploreAppsModal);
-      renderExploreAppsGrid('all', '');
-    });
-  }
-  if (btnExploreApps) {
-    btnExploreApps.addEventListener('click', () => {
+      closeSidebarIfMobile();
       openModal(exploreAppsModal);
       renderExploreAppsGrid('all', '');
     });
@@ -8708,6 +8793,18 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
     });
   }
 
+  // Backdrop overlay click to dismiss any modal
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
+      if (e.target.id === 'sandbox-export-modal') {
+        closeSandboxExportModal();
+      } else {
+        closeModal(e.target);
+      }
+    }
+  });
+
+  // Global Escape key dismissal
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (sandboxExportModal && sandboxExportModal.style.display !== 'none') {
@@ -8718,12 +8815,12 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
         closeSandboxHistoryDrawer();
         return;
       }
-      if (sandboxStudioView && sandboxStudioView.style.display !== 'none') {
-        closeSandboxStudio();
+      if (sandboxGithubDrawer && sandboxGithubDrawer.style.display !== 'none') {
+        sandboxGithubDrawer.style.display = 'none';
         return;
       }
-      if (artifactsPane && artifactsPane.style.display !== 'none') {
-        closeArtifact();
+      if (artifactsGithubPanel && artifactsGithubPanel.style.display !== 'none') {
+        artifactsGithubPanel.style.display = 'none';
         return;
       }
       if (pluginsModal && pluginsModal.classList.contains('active')) {
@@ -8734,12 +8831,22 @@ Do NOT truncate. Preserve all working functionality and apply the requested feat
         closeModal(exploreAppsModal);
         return;
       }
-      if (projectStudioView && projectStudioView.style.display !== 'none') {
-        closeProjectStudio();
+      if (settingsModal && settingsModal.classList.contains('active')) {
+        closeModal(settingsModal);
         return;
       }
-      closeModal(modelModal);
-      closeModal(settingsModal);
+      if (modelModal && modelModal.classList.contains('active')) {
+        closeModal(modelModal);
+        return;
+      }
+      if (chatToolsPopover && chatToolsPopover.style.display !== 'none') {
+        closeToolsPopover();
+        return;
+      }
+      if (artifactsPane && artifactsPane.style.display !== 'none') {
+        closeArtifact();
+        return;
+      }
     }
   });
 
